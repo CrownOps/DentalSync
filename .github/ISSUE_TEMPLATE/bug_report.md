@@ -7,18 +7,6 @@ assignees: ''
 
 ---
 
-name: "🐞 Bug Report"
-description: "버그 발생 시 제보"
-labels: ["bug"]
-body:---
-
-name: "🐞 Bug Report"
-about: "버그 발생 시 제보"
-title: "[BUG] "
-labels: ["bug"]
-assignees: ""
--------------
-
 ## 🐛 버그 설명
 
 어떤 버그인지 자세히 작성해 주세요.

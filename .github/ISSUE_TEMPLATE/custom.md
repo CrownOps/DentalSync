@@ -7,15 +7,6 @@ assignees: ''
 
 ---
 
----
-
-name: "📌 Custom Issue"
-about: "기타 논의할 사항을 기록"
-title: "[CUSTOM] "
-labels: ["custom"]
-assignees: ""
--------------
-
 ## 📌 피처 개요
 
 해당 이슈의 주요 개요를 설명해 주세요.

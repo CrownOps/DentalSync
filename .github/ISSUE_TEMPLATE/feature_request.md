@@ -7,15 +7,6 @@ assignees: ''
 
 ---
 
----
-
-name: "✨ Feature"
-about: "새로운 기능 추가"
-title: "[FEAT] "
-labels: ["feature"]
-assignees: ""
--------------
-
 ## 📄 설명
 
 새로운 기능에 대한 설명을 작성해 주세요.
