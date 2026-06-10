@@ -11,7 +11,13 @@
       "Bash(uv run *)",
       "Bash(npm run *)",
       "Bash(docker compose *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'feat: scaffold DentalSync step 0 monorepo *)",
+      "Bash(git branch *)",
+      "Bash(git --no-pager log --oneline -1)",
+      "Bash(git --no-pager diff .claude/settings.local.json)",
+      "Bash(git commit -q -m 'chore: update local permission allowlist *)",
+      "Bash(git --no-pager log --oneline -2)"
     ]
   }
 }
