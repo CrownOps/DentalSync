@@ -69,6 +69,25 @@ cd frontend
 npm run build
 ```
 
+## DB / 마이그레이션 (Alembic)
+
+DB 스키마는 SQLAlchemy 2.0 모델(`backend/app/db/models.py`) + Alembic 으로 관리한다.
+DB URL 은 `.env` 의 `DATABASE_URL` 을 `alembic/env.py` 가 주입한다.
+
+```bash
+docker compose -f docker-compose.dev.yml up -d postgres   # 로컬 Postgres
+cd backend
+uv run alembic upgrade head        # 최신 스키마 적용
+uv run alembic revision --autogenerate -m "변경 설명"   # 모델 변경 후 마이그레이션 생성
+uv run alembic check               # 모델↔마이그레이션 드리프트 점검
+```
+
+테이블: `labs · users · orders · order_fields · training_labels · field_audit_log`.
+- `order_fields` 는 필드별 **4종 저장**(raw / corrected / score / flags·status) + `(order_id, field_key)` unique.
+- 개인정보 최소수집: 환자명 외 주민번호/전화번호 등 PII 컬럼은 만들지 않는다.
+- 의뢰서 상태 규칙은 `app/services/order_status.py` (전 필드 confirmed → `auto_confirmed`,
+  하나라도 needs_review → `needs_review`).
+
 ## 설정 (config/scoring.yaml)
 
 신뢰도 스코어는 `score = 0.5·ocr_conf + 0.3·rule_pass + 0.2·dict_match` 로 계산하며,

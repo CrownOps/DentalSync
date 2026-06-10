@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+
 from app.core.scoring import load_scoring_config
 
 
