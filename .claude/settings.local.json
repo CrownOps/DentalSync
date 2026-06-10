@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/eunji/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/1086c7d3-4a40-4e75-ae06-50659ea508f1/d5f6fbba-dbab-4d96-9214-2414582b1f8e/skills/xlsx/**)",
+      "Bash(python -c ' *)",
+      "Bash(pip install *)",
+      "Bash(python fill_requirements.py)",
+      "Bash(git check-ignore *)",
+      "Bash(git rm *)",
+      "Bash(uv sync *)",
+      "Bash(uv run *)",
+      "Bash(npm run *)",
+      "Bash(docker compose *)",
+      "Bash(git add *)"
+    ]
+  }
+}

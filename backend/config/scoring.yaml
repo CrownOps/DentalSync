@@ -1,0 +1,14 @@
+# 신뢰도 스코어링 설정 (외부화)
+# score = w_ocr*ocr_conf + w_rule*rule_pass + w_dict*dict_match
+# critical_fields 는 docs/dental_lab_request_ocr_layout_v1_1_0.json 의 layout field key 를 따른다.
+weights:
+  ocr_conf: 0.5
+  rule_pass: 0.3
+  dict_match: 0.2
+thresholds:
+  general: 0.90
+  critical: 0.95
+critical_fields:
+  - shade
+  - tooth_numbers
+  - due_date
