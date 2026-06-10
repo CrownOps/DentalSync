@@ -10,6 +10,8 @@ dependencies = [
     "pydantic-settings>=2.5",
     "pyyaml>=6.0",
     "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.2",
 ]
 
 [dependency-groups]
@@ -35,10 +37,15 @@ packages = ["app"]
 target-version = "py312"
 line-length = 100
 src = ["app", "tests"]
+# 자동생성 마이그레이션은 린트 대상에서 제외
+extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
 ignore = ["RUF001", "RUF002", "RUF003"]  # 한글 문자열/주석 유사문자 경고 비활성
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
 
 # ---------------------------------------------------------------------------
 # mypy
