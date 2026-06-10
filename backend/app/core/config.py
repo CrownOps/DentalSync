@@ -37,9 +37,11 @@ class Settings(BaseSettings):
     blur_laplacian_min: float = 100.0  # Laplacian variance 가 이 값 미만이면 블러로 반려
     pdf_render_dpi: int = 200  # PDF 1페이지 래스터화 DPI
 
-    # --- 외부 API (Step 0 에서는 미사용, 키 자리만 확보) ---
+    # --- 외부 API: Naver CLOVA OCR (Template Basic) ---
     clova_api_key: str = ""
     clova_template_id: str = ""
+    clova_ocr_invoke_url: str = ""  # APIGW invoke URL
+    clova_ocr_secret: str = ""  # X-OCR-SECRET
     anthropic_api_key: str = ""
 
     # --- Cloudflare R2 (S3 호환 스토리지) ---

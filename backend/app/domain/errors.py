@@ -36,3 +36,11 @@ class LabNotFoundError(Exception):
 
 class StorageError(Exception):
     """오브젝트 스토리지(R2) 작업 실패."""
+
+
+class OrderNotFoundError(Exception):
+    """존재하지 않는 의뢰서 — 404."""
+
+    def __init__(self, order_id: int) -> None:
+        super().__init__(f"order {order_id} not found")
+        self.order_id = order_id

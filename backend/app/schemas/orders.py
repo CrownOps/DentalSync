@@ -31,3 +31,11 @@ class ImageRejectResponse(BaseModel):
     error_code: str
     message: str
     guidance: str
+
+
+class OCRRunResponse(BaseModel):
+    """OCR 실행/재시도 결과."""
+
+    order_id: int
+    status: str
+    field_count: int

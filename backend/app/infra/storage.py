@@ -14,6 +14,8 @@ from app.domain.errors import StorageError
 class StorageClient(Protocol):
     def put_object(self, key: str, data: bytes, content_type: str) -> None: ...
 
+    def get_object(self, key: str) -> bytes: ...
+
     def delete_object(self, key: str) -> None: ...
 
 
@@ -59,6 +61,14 @@ class R2Storage:
             )
         except Exception as exc:
             raise StorageError(f"R2 업로드 실패(key={key}): {exc}") from exc
+
+    def get_object(self, key: str) -> bytes:
+        try:
+            resp = self._client.get_object(Bucket=self._bucket, Key=key)
+            body: bytes = resp["Body"].read()
+            return body
+        except Exception as exc:
+            raise StorageError(f"R2 조회 실패(key={key}): {exc}") from exc
 
     def delete_object(self, key: str) -> None:
         try:
