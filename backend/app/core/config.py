@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     # --- 데이터 스토어 ---
     database_url: str = "postgresql+psycopg://dentalsync:dentalsync@localhost:5432/dentalsync"
     redis_url: str = "redis://localhost:6379"
+    image_cache_ttl_seconds: int = 60 * 60 * 24 * 7  # 이미지 해시 캐시 TTL 7일
+
+    # --- 이미지 업로드 검증 임계값 (외부화) ---
+    max_image_bytes: int = 15 * 1024 * 1024  # 15MB
+    min_image_width: int = 1000
+    min_image_height: int = 1000
+    blur_laplacian_min: float = 100.0  # Laplacian variance 가 이 값 미만이면 블러로 반려
+    pdf_render_dpi: int = 200  # PDF 1페이지 래스터화 DPI
 
     # --- 외부 API (Step 0 에서는 미사용, 키 자리만 확보) ---
     clova_api_key: str = ""

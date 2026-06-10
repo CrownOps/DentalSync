@@ -12,6 +12,12 @@ dependencies = [
     "sqlalchemy>=2.0",
     "alembic>=1.13",
     "psycopg[binary]>=3.2",
+    "python-multipart>=0.0.9",
+    "opencv-python-headless>=4.10",
+    "numpy>=2.0",
+    "pymupdf>=1.24",
+    "boto3>=1.35",
+    "redis>=5.0",
 ]
 
 [dependency-groups]
@@ -55,6 +61,16 @@ python_version = "3.12"
 strict = true
 warn_unused_configs = true
 ignore_missing_imports = true
+
+# OpenCV(cv2)/PyMuPDF 는 타입 스텁이 없어 Any 를 다수 반환한다.
+# 이미징 모듈에 한해 Any 관련 strict 플래그를 완화한다.
+[[tool.mypy.overrides]]
+module = ["app.services.preprocessing", "tests.imaging_utils", "tests.test_preprocessing"]
+warn_return_any = false
+disallow_any_generics = false
+disallow_any_expr = false
+# cv2(4.13) 의 MatLike 반환 타입이 uint8 alias 와 불일치 — 이미징 모듈만 완화
+disable_error_code = ["return-value"]
 
 # ---------------------------------------------------------------------------
 # pytest
