@@ -17,7 +17,10 @@
       "Bash(git --no-pager log --oneline -1)",
       "Bash(git --no-pager diff .claude/settings.local.json)",
       "Bash(git commit -q -m 'chore: update local permission allowlist *)",
-      "Bash(git --no-pager log --oneline -2)"
+      "Bash(git --no-pager log --oneline -2)",
+      "Bash(git push *)",
+      "Bash(git --no-pager log --oneline origin/main..HEAD)",
+      "Bash(git rev-list *)"
     ]
   }
 }
