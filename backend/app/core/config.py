@@ -1,0 +1,55 @@
+"""애플리케이션 설정 — pydantic-settings 로 .env 로드."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# backend/ 디렉터리 기준 (이 파일: backend/app/core/config.py)
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    # --- 일반 ---
+    environment: str = "local"
+
+    # --- CORS (프론트 origin 허용) ---
+    cors_origins: str = "http://localhost:3000"
+
+    # --- 데이터 스토어 ---
+    database_url: str = "postgresql+psycopg://dentalsync:dentalsync@localhost:5432/dentalsync"
+    redis_url: str = "redis://localhost:6379"
+
+    # --- 외부 API (Step 0 에서는 미사용, 키 자리만 확보) ---
+    clova_api_key: str = ""
+    clova_template_id: str = ""
+    anthropic_api_key: str = ""
+
+    # --- Cloudflare R2 (S3 호환 스토리지) ---
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket: str = ""
+    r2_endpoint: str = ""
+
+    # --- 스코어링 설정 파일 경로 ---
+    scoring_config_path: Path = BACKEND_DIR / "config" / "scoring.yaml"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """콤마 구분 문자열 → origin 리스트."""
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
