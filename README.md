@@ -69,6 +69,19 @@ cd frontend
 npm run build
 ```
 
+## API
+
+| 메서드 | 경로 | 설명 |
+| --- | --- | --- |
+| GET | `/health` | 헬스 체크 |
+| POST | `/api/orders` | 의뢰서 이미지 업로드 (multipart: `image`, `lab_id`) |
+
+`POST /api/orders` 앞단 파이프라인: 검증(jpg/png/pdf·크기·해상도·블러) → 전처리(deskew/denoise/resize)
+→ SHA-256 해시 → Redis 캐시 조회(TTL 7일) → R2 업로드 + `orders` 생성(status `uploaded`).
+- 품질 미달 시 **422** + `{error_code, message, guidance}`(재촬영 안내). 블러는 OpenCV Laplacian
+  variance 로 측정하며 임계값은 `Settings`(env) 로 외부화(`BLUR_LAPLACIAN_MIN` 등).
+- 트랜잭션 단위는 의뢰서 — R2/DB 실패 시 부분 저장 없이 전체 롤백.
+
 ## DB / 마이그레이션 (Alembic)
 
 DB 스키마는 SQLAlchemy 2.0 모델(`backend/app/db/models.py`) + Alembic 으로 관리한다.
