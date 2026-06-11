@@ -18,6 +18,8 @@ class StorageClient(Protocol):
 
     def delete_object(self, key: str) -> None: ...
 
+    def generate_presigned_url(self, key: str, expires: int = 300) -> str: ...
+
 
 class R2Storage:
     """boto3 S3 호환 클라이언트로 R2 에 객체를 저장/삭제."""
@@ -75,3 +77,14 @@ class R2Storage:
             self._client.delete_object(Bucket=self._bucket, Key=key)
         except Exception as exc:
             raise StorageError(f"R2 삭제 실패(key={key}): {exc}") from exc
+
+    def generate_presigned_url(self, key: str, expires: int = 300) -> str:
+        try:
+            url: str = self._client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self._bucket, "Key": key},
+                ExpiresIn=expires,
+            )
+            return url
+        except Exception as exc:
+            raise StorageError(f"Presigned URL 생성 실패(key={key}): {exc}") from exc
