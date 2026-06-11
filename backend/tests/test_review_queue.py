@@ -80,7 +80,7 @@ def _make_order(
 ) -> Order:
     order = Order(
         lab_id=lab_id,
-        image_url=f"orders/test.jpg",
+        image_url="orders/test.jpg",
         image_hash="abc",
         status=status,
     )
@@ -131,7 +131,7 @@ def test_queue_sorted_by_min_score_asc(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:
     with session_factory() as s:
-        high = _make_order(s, OrderStatus.needs_review, [0.9, 0.95])
+        _make_order(s, OrderStatus.needs_review, [0.9, 0.95])
         low = _make_order(s, OrderStatus.needs_review, [0.3, 0.7])
 
     resp = client.get("/api/orders")
