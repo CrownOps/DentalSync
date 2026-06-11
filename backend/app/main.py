@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.health import router as health_router
 from app.api.orders import router as orders_router
+from app.api.v1.review import router as review_router
 from app.core.config import get_settings
 from app.core.scoring import get_scoring_config
 from app.domain.errors import ImageValidationError
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(orders_router)
+    app.include_router(review_router)
     return app
 
 

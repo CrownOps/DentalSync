@@ -35,6 +35,7 @@ from app.schemas.orders import (
     OrderIntakeResponse,
     ReviewQueueItem,
 )
+from app.schemas.review import OrderStatusResponse
 from app.services.ocr_runner import run_ocr
 from app.services.order_confirm import confirm_order
 from app.services.order_intake import intake_order
@@ -174,6 +175,22 @@ def confirm_order_endpoint(
         status=result.status.value,
         updated_fields=result.updated_fields,
         training_labels_inserted=result.training_labels_inserted,
+    )
+
+
+@router.get("/v1/orders/{order_id}/status", response_model=OrderStatusResponse)
+def get_order_status(
+    order_id: int,
+    session: Annotated[Session, Depends(get_db)],
+) -> OrderStatusResponse:
+    """상태 폴링 전용 경량 엔드포인트 — 프론트 TanStack Query 폴링용."""
+    order: Order | None = session.get(Order, order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail=f"주문을 찾을 수 없음: {order_id}")
+    return OrderStatusResponse(
+        order_id=order.id,
+        status=order.status.value,
+        updated_at=order.updated_at.isoformat() if order.updated_at else None,
     )
 
 
