@@ -39,3 +39,36 @@ class OCRRunResponse(BaseModel):
     order_id: int
     status: str
     field_count: int
+
+
+class OrderFieldOut(BaseModel):
+    """필드별 결과(4종 저장 그대로 노출)."""
+
+    field_key: str
+    field_type: str
+    raw_text: str | None
+    corrected_value: str | None
+    corrected_by: str | None
+    score: float | None
+    score_components: dict[str, float] | None
+    status: str
+    flags: dict[str, object] | None
+
+
+class OrderDetailResponse(BaseModel):
+    """GET /api/orders/{id} — 상태 + 필드별 결과."""
+
+    order_id: int
+    lab_id: int
+    status: str
+    image_hash: str
+    fields: list[OrderFieldOut]
+
+
+class OrderSummaryOut(BaseModel):
+    """검토 큐 목록 항목."""
+
+    order_id: int
+    lab_id: int
+    status: str
+    min_score: float | None  # 가장 낮은 필드 점수(검토 우선순위 근거)

@@ -19,6 +19,7 @@ from app.infra.llm.openai_structurer import OpenAIStructurer
 from app.infra.ocr.base import OCREngine
 from app.infra.ocr.clova import CLOVAOCREngine
 from app.infra.storage import R2Storage, StorageClient
+from app.services.order_pipeline import OrderPipeline
 
 
 def get_settings_dep() -> Settings:
@@ -49,3 +50,20 @@ def get_ocr_engine(settings: Settings = Depends(get_settings_dep)) -> OCREngine:
 def get_llm_structurer(settings: Settings = Depends(get_settings_dep)) -> LLMStructurer:  # noqa: B008
     # 서비스는 LLMStructurer 인터페이스에만 의존 — 벤더 교체 시 이 함수만 변경.
     return OpenAIStructurer.from_settings(settings)
+
+
+def get_order_pipeline(settings: Settings = Depends(get_settings_dep)) -> OrderPipeline:  # noqa: B008
+    """파이프라인 조립 — 구체 구현 선택은 전부 여기(조립 레이어)에서."""
+    from app.core.scoring import get_scoring_config
+    from app.services.dictionary import DictMatcher
+
+    return OrderPipeline(
+        session_factory=get_session_factory(),
+        ocr=CLOVAOCREngine.from_settings(settings),
+        llm=OpenAIStructurer.from_settings(settings),
+        storage=R2Storage.from_settings(settings),
+        cache=RedisCache.from_url(settings.redis_url),
+        matcher=DictMatcher.from_settings(settings),
+        settings=settings,
+        scoring_config=get_scoring_config(),
+    )

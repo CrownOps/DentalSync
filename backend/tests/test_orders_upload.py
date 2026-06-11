@@ -16,7 +16,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.deps import get_cache, get_db, get_settings_dep, get_storage
+from app.api.deps import (
+    get_cache,
+    get_db,
+    get_order_pipeline,
+    get_settings_dep,
+    get_storage,
+)
 from app.core.config import Settings
 from app.db.base import Base
 from app.db.models import Lab, Order
@@ -79,10 +85,17 @@ def harness() -> Iterator[Harness]:
         finally:
             s.close()
 
+    class _NoopPipeline:
+        """업로드 단위 테스트는 후속 파이프라인 실행을 검증 대상에서 제외."""
+
+        async def run_safe(self, order_id: int) -> None:
+            return None
+
     app.dependency_overrides[get_db] = _db
     app.dependency_overrides[get_storage] = lambda: storage
     app.dependency_overrides[get_cache] = lambda: cache
     app.dependency_overrides[get_settings_dep] = lambda: settings
+    app.dependency_overrides[get_order_pipeline] = lambda: _NoopPipeline()
     try:
         yield Harness(TestClient(app), storage, cache, session_local)
     finally:

@@ -74,8 +74,19 @@ npm run build
 | 메서드 | 경로 | 설명 |
 | --- | --- | --- |
 | GET | `/health` | 헬스 체크 |
-| POST | `/api/orders` | 의뢰서 이미지 업로드 (multipart: `image`, `lab_id`) |
+| POST | `/api/orders` | 의뢰서 이미지 업로드 → 파이프라인 비동기 실행(BackgroundTasks) |
+| GET | `/api/orders/{id}` | 상태 폴링 — 진행 단계 + 필드별 결과(4종) |
+| GET | `/api/orders?status=&lab_id=` | 목록/검토 큐 — 최저 필드 점수 낮은 순 정렬 |
 | POST | `/api/orders/{id}/retry-ocr` | OCR 수동 재시도 (실패 시 `ocr_failed`) |
+
+### 파이프라인 (OrderPipeline)
+
+업로드 완료 → FastAPI BackgroundTasks 로 자동 진행 (QStash 금지 — Phase 1 결정):
+`preprocessing → ocr_running(CLOVA 1회 또는 해시 캐시) → routing → 스코어링/분기 → 저장`
+- 필드 타입 분기: A→마킹/선택지 검증, B→룰 엔진, SHADE→색상/사전, C→LLM 승급 체인.
+  분류는 `app/services/template_routing.py` 의 선언적 매핑(layout v1.1.0 정합 검증) — 추론 없음.
+- 실패 격리: 필드 단위 try/except → 실패 필드만 `forced_hitl`. CLOVA/스토리지 실패는 전체 `ocr_failed`.
+- 구조화 로깅(structlog): order_id·단계·소요시간·LLM 호출 수.
 
 `POST /api/orders` 앞단 파이프라인: 검증(jpg/png/pdf·크기·해상도·블러) → 전처리(deskew/denoise/resize)
 → SHA-256 해시 → Redis 캐시 조회(TTL 7일) → R2 업로드 + `orders` 생성(status `uploaded`).

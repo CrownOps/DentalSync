@@ -9,12 +9,14 @@ from fastapi.responses import JSONResponse
 from app.api.health import router as health_router
 from app.api.orders import router as orders_router
 from app.core.config import get_settings
+from app.core.logging import configure_logging
 from app.core.scoring import get_scoring_config
 from app.domain.errors import ImageValidationError
 from app.schemas.orders import ImageRejectResponse
 
 
 def create_app() -> FastAPI:
+    configure_logging()
     settings = get_settings()
     app = FastAPI(title="DentalSync API", version="0.1.0")
 
