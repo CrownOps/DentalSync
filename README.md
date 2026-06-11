@@ -91,6 +91,16 @@ npm run build
 - `MockOCREngine`: 테스트/로컬용. `app/infra/ocr/layout_v1_1_0.json` 의 OCR 필드 정의 기반 고정 응답.
 - Phase 3 자체 모델 전환 시 이 인터페이스만 구현하면 교체 가능(서비스는 CLOVA 를 직접 import 하지 않음).
 
+### Type A 마킹 / Shade 인식 (LLM 0회)
+
+- Type A(`app/services/marking_detection.py`, OpenCV): 템플릿 체크박스 bbox 별 잉크 밀도 + 빨강/파랑 펜
+  감지. 단일 마킹=1.0, 복수/모호/무마킹=0.0. 임계값은 Settings 외부화(`MARKING_*`, 파일럿 튜닝 대상).
+- Shade(`app/services/shade_detection.py`, PIL): 쉐이드 셀 마킹 감지 → 도메인 사전으로 VITA 코드 정규화.
+  치명 필드 — `flags={"critical": true, "threshold": 0.95}` 명시.
+- 둘 다 `(value, rule_pass, debug_info)` 반환 → 스코어링 단계에서 합성.
+- e2e 수동 검증: `uv run python scripts/test_marking.py --image 샘플.jpg --template 템플릿.json`
+  (샘플 없으면 `--demo` 로 합성 의뢰서 생성 후 즉시 확인)
+
 ## DB / 마이그레이션 (Alembic)
 
 DB 스키마는 SQLAlchemy 2.0 모델(`backend/app/db/models.py`) + Alembic 으로 관리한다.

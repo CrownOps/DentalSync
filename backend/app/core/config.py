@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     domain_dict_dir: Path = BACKEND_DIR / "data" / "domain_dict"
     dict_fuzzy_threshold: float = 85.0  # rapidfuzz 점수(0~100) 이상이면 유사 보정 인정
 
+    # --- Type A 마킹 감지 (파일럿 튜닝 대상) ---
+    marking_density_marked: float = 0.06  # 잉크 밀도가 이 이상이면 마킹으로 판정
+    marking_density_ambiguous: float = 0.025  # [ambiguous, marked) 구간은 모호 → HITL
+    marking_color_ratio_marked: float = 0.04  # 빨강/파랑 펜 픽셀 비율 임계
+    marking_border_margin: float = 0.18  # 체크박스 테두리 제외 비율(각 변)
+
+    # --- Shade 마킹 감지 (파일럿 튜닝 대상) ---
+    shade_mark_ratio: float = 0.03  # 셀 내 펜 마킹 픽셀 비율 임계
+
     @property
     def cors_origins_list(self) -> list[str]:
         """콤마 구분 문자열 → origin 리스트."""
