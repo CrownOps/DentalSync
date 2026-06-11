@@ -126,6 +126,10 @@ class OrderField(Base):
     # --- score (신뢰도) ---
     score: Mapped[float | None] = mapped_column(Float, default=None)
     score_components: Mapped[dict[str, Any] | None] = mapped_column(JSONB_VARIANT, default=None)
+    # 구성요소 개별 컬럼 — 임계값 튜닝 분석 쿼리용 (JSONB 와 이중 기록)
+    ocr_conf: Mapped[float | None] = mapped_column(Float, default=None)
+    rule_pass: Mapped[float | None] = mapped_column(Float, default=None)
+    dict_match: Mapped[float | None] = mapped_column(Float, default=None)
 
     # --- flags / 상태 ---
     flags: Mapped[dict[str, Any] | None] = mapped_column(JSONB_VARIANT, default=None)
