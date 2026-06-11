@@ -94,7 +94,10 @@ def _make_order(
         s.add(order)
         s.flush()
         for f in (fields or []):
-            flags = {"corrected_by_human": f.get("human", False), "forced_hitl": f.get("forced_hitl", False)}
+            flags = {
+                "corrected_by_human": f.get("human", False),
+                "forced_hitl": f.get("forced_hitl", False),
+            }
             s.add(OrderField(
                 order_id=order.id,
                 field_key=f["key"],
@@ -114,7 +117,9 @@ def _make_order(
 # ── 큐 정렬 ───────────────────────────────────────────────────────────────────
 
 
-def test_queue_sorted_by_min_score(client: TestClient, session_factory: sessionmaker[Session]) -> None:
+def test_queue_sorted_by_min_score(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
     _make_order(session_factory, fields=[{"key": "f1", "score": 0.9}, {"key": "f2", "score": 0.95}])
     low = _make_order(session_factory, fields=[{"key": "f1", "score": 0.3}])
 
@@ -228,7 +233,7 @@ def test_training_labels_inserted_with_anonymization(
     with session_factory() as s:
         labels = s.query(TrainingLabel).all()
         assert len(labels) >= 1
-        patient_label = next((l for l in labels if "patient" in str(l.order_field_id or "")), labels[0])
+        patient_label = labels[0]
         # raw_text 가 익명화됐는지 확인 (원본 그대로면 안 됨)
         if patient_label.raw_text is not None:
             assert patient_label.raw_text != "홍길동" or patient_label.corrected_value != "김철수"

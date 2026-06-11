@@ -92,6 +92,9 @@ def store_routing_result(
     cfg = scoring_cfg or get_scoring_config()
 
     try:
+        # OCR 재시도 등 재실행 시 (order_id, field_key) 유니크 제약 충돌 방지
+        session.query(OrderField).filter_by(order_id=order_id).delete()
+
         needs_review_count = 0
         for fr in field_results:
             field_status = _determine_field_status(fr.field_key, fr.confidence, fr.flags, cfg)
@@ -125,6 +128,9 @@ def store_routing_result(
                 corrected_by=fr.corrected_by,
                 score=fr.confidence.score,
                 score_components=score_components or None,
+                ocr_conf=fr.confidence.ocr_conf,
+                rule_pass=fr.confidence.rule_pass,
+                dict_match=fr.confidence.dict_match,
                 flags=flags_dict,
                 status=field_status,
             )

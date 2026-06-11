@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchReviewQueueV1, retryOcr, ReviewQueueItemV1 } from "@/lib/api";
+import { ReviewQueueItemV1 } from "@/lib/api";
+import { useReviewQueue } from "@/lib/hooks";
 
 function ScoreBadge({ score }: { score: number | null }) {
   if (score === null) return <span className="text-gray-400 text-xs">—</span>;
@@ -48,11 +48,7 @@ function QueueRow({ item }: { item: ReviewQueueItemV1 }) {
 }
 
 export default function ReviewQueuePage() {
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["review-queue-v1"],
-    queryFn: () => fetchReviewQueueV1({ limit: 50 }),
-    refetchInterval: 5000,
-  });
+  const { data, isLoading, isError, error } = useReviewQueue({ limit: 50 });
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">

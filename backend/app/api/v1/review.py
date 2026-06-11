@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_storage
+from app.api.deps import get_db, get_storage, require_auth
 from app.db.models import Order, OrderField
 from app.domain.enums import FieldStatus, OrderStatus
 from app.domain.errors import OrderNotFoundError, StorageError
@@ -36,7 +36,11 @@ from app.services.order_review_confirm import (
     confirm_review_order,
 )
 
-router = APIRouter(prefix="/api/v1/review", tags=["review"])
+router = APIRouter(
+    prefix="/api/v1/review",
+    tags=["review"],
+    dependencies=[Depends(require_auth)],
+)
 
 # PII 필드 키 목록 — 레이아웃 정의 v1.1.0 의 pii:true 필드
 _PII_FIELD_KEYS = frozenset({"patient_name", "patient_id", "ssn", "phone"})

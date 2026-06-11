@@ -94,7 +94,9 @@ def test_all_high_confidence_auto_confirmed(session_factory: sessionmaker[Sessio
     assert result.needs_review_count == 0
 
 
-def test_one_field_below_general_threshold_needs_review(session_factory: sessionmaker[Session]) -> None:
+def test_one_field_below_general_threshold_needs_review(
+    session_factory: sessionmaker[Session],
+) -> None:
     order_id = _make_order(session_factory)
     with session_factory() as s:
         result = store_routing_result(
@@ -151,7 +153,10 @@ def test_exception_rolls_back_order_status_to_routing(
 
     with (
         session_factory() as s,
-        patch("app.services.routing_store.OrderField", side_effect=Exception("DB 오류")),
+        patch(
+            "app.services.routing_store._determine_field_status",
+            side_effect=Exception("DB 오류"),
+        ),
         pytest.raises(Exception, match="DB 오류"),
     ):
         store_routing_result(

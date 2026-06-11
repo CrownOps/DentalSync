@@ -107,9 +107,10 @@ def test_retry_ocr_success_with_mock_engine(harness: Harness) -> None:
     resp: httpx.Response = harness.client.post("/api/orders/1/retry-ocr")
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["status"] == "routing"
+    # 라우팅 결과 저장까지 연결되어 needs_review | auto_confirmed 로 전이된다
+    assert body["status"] in ("needs_review", "auto_confirmed")
     assert body["field_count"] > 0
-    assert _order_status(harness) is OrderStatus.routing
+    assert _order_status(harness) in (OrderStatus.needs_review, OrderStatus.auto_confirmed)
 
 
 def test_interface_swap_with_dummy_engine(harness: Harness) -> None:

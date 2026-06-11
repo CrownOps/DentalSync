@@ -3,24 +3,19 @@
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  fetchReviewDetailV1,
   updateFieldV1,
   confirmReviewOrderV1,
-  fetchOrderStatus,
   retryOcr,
   FieldEnvelope,
   ReviewDetailResponse,
 } from "@/lib/api";
+import { parseBbox, bboxToRect } from "@/lib/bbox";
+import {
+  POLL_STOP_STATUSES,
+  useReviewDetail,
+  useOrderStatus,
+} from "@/lib/hooks";
 import { useState, useRef, useCallback, useEffect } from "react";
-
-// ── 상수 ──────────────────────────────────────────────────────────────────────
-
-const POLL_STOP_STATUSES = new Set([
-  "needs_review",
-  "auto_confirmed",
-  "confirmed",
-  "ocr_failed",
-]);
 
 // ── 신뢰도 색상 ────────────────────────────────────────────────────────────────
 
@@ -36,38 +31,6 @@ function scoreBg(score: number | null): string {
   if (score >= 0.9) return "bg-green-50";
   if (score >= 0.6) return "bg-yellow-50";
   return "bg-red-50";
-}
-
-// ── bbox 오버레이 ──────────────────────────────────────────────────────────────
-
-interface BBox {
-  vertices: { x: number; y: number }[];
-}
-
-function parseBbox(raw: Record<string, unknown> | null): BBox | null {
-  if (!raw) return null;
-  const verts = (raw as { vertices?: { x: number; y: number }[] }).vertices;
-  if (!verts || verts.length < 2) return null;
-  return { vertices: verts };
-}
-
-function bboxToRect(
-  bbox: BBox,
-  imgW: number,
-  imgH: number,
-  naturalW: number,
-  naturalH: number,
-) {
-  const scaleX = imgW / naturalW;
-  const scaleY = imgH / naturalH;
-  const xs = bbox.vertices.map((v) => v.x * scaleX);
-  const ys = bbox.vertices.map((v) => v.y * scaleY);
-  return {
-    left: Math.min(...xs),
-    top: Math.min(...ys),
-    width: Math.max(...xs) - Math.min(...xs),
-    height: Math.max(...ys) - Math.min(...ys),
-  };
 }
 
 // ── 이미지 + bbox 오버레이 컴포넌트 ────────────────────────────────────────────
@@ -349,16 +312,7 @@ function FieldForm({ order, activeKey, onFieldFocus }: FieldFormProps) {
 
 function StatusPollingBanner({ orderId }: { orderId: number }) {
   const qc = useQueryClient();
-
-  const { data } = useQuery({
-    queryKey: ["order-status", orderId],
-    queryFn: () => fetchOrderStatus(orderId),
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      if (status && POLL_STOP_STATUSES.has(status)) return false;
-      return 2000;
-    },
-  });
+  const { data } = useOrderStatus(orderId);
 
   useEffect(() => {
     if (data?.status && POLL_STOP_STATUSES.has(data.status)) {
@@ -383,10 +337,7 @@ export default function ReviewDetailPage() {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const qc = useQueryClient();
 
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["review-detail", orderId],
-    queryFn: () => fetchReviewDetailV1(orderId),
-  });
+  const { data, isLoading, isError, error } = useReviewDetail(orderId);
 
   const { mutate: retry, isPending: retrying } = useMutation({
     mutationFn: () => retryOcr(orderId),

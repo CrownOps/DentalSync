@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # --- 일반 ---
     environment: str = "local"
 
+    # --- 인증 (Phase 1: lab 단위 단일 토큰. RBAC 세분화는 Phase 2) ---
+    # 빈 값이면 인증 비활성(로컬 개발). 운영에서는 반드시 설정.
+    api_auth_token: str = ""
+
     # --- CORS (프론트 origin 허용) ---
     cors_origins: str = "http://localhost:3000"
 
