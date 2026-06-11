@@ -38,6 +38,9 @@ class _FakeStorage:
     def delete_object(self, key: str) -> None:
         pass
 
+    def generate_presigned_url(self, key: str, expires: int = 300) -> str:
+        return f"https://fake-r2/{key}"
+
 
 class _FailingEngine:
     """OCREngine 구현 — 항상 실패(일시적 오류)."""

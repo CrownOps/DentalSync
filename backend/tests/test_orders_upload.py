@@ -41,9 +41,15 @@ class FakeStorage:
             raise StorageError("R2 unavailable")
         self.objects[key] = data
 
+    def get_object(self, key: str) -> bytes:
+        return self.objects.get(key, b"")
+
     def delete_object(self, key: str) -> None:
         self.deleted.append(key)
         self.objects.pop(key, None)
+
+    def generate_presigned_url(self, key: str, expires: int = 300) -> str:
+        return f"https://fake-r2/{key}"
 
 
 @dataclass
