@@ -20,6 +20,7 @@ dependencies = [
     "redis>=5.0",
     "tenacity>=9.0",
     "rapidfuzz>=3.9",
+    "pillow>=10.0",
 ]
 
 [dependency-groups]
@@ -69,7 +70,13 @@ ignore_missing_imports = true
 # OpenCV(cv2)/PyMuPDF 는 타입 스텁이 없어 Any 를 다수 반환한다.
 # 이미징 모듈에 한해 Any 관련 strict 플래그를 완화한다.
 [[tool.mypy.overrides]]
-module = ["app.services.preprocessing", "tests.imaging_utils", "tests.test_preprocessing"]
+module = [
+    "app.services.preprocessing",
+    "app.services.marking_detection",
+    "tests.imaging_utils",
+    "tests.test_preprocessing",
+    "tests.test_marking_detection",
+]
 warn_return_any = false
 disallow_any_generics = false
 disallow_any_expr = false
