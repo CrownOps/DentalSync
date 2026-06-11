@@ -42,7 +42,19 @@ class Settings(BaseSettings):
     clova_template_id: str = ""
     clova_ocr_invoke_url: str = ""  # APIGW invoke URL
     clova_ocr_secret: str = ""  # X-OCR-SECRET
-    anthropic_api_key: str = ""
+
+    # --- 외부 API: OpenAI — Type C 텍스트 구조화 전용(이미지 입력 금지) ---
+    # 모델명 하드코딩 금지: 코드가 아닌 이 설정으로만 모델을 지정한다.
+    # 기본값(gpt-5-mini/gpt-5)은 잠정값 — 현 시점 라인업·가격 확인 후 확정 필요.
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+    llm_model_primary: str = "gpt-5-mini"
+    llm_model_escalation: str = "gpt-5"
+
+    # --- Type C 비용 가드 ---
+    type_c_design_ratio: float = 0.25  # 설계상 LLM 호출 비중(~25%)
+    type_c_ratio_warn_margin: float = 0.15  # 설계치 + 마진 초과 시 경고 로그
+    type_c_ratio_min_samples: int = 20  # 경고 판단 최소 표본 수
 
     # --- Cloudflare R2 (S3 호환 스토리지) ---
     r2_account_id: str = ""

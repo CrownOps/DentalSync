@@ -91,6 +91,17 @@ npm run build
 - `MockOCREngine`: 테스트/로컬용. `app/infra/ocr/layout_v1_1_0.json` 의 OCR 필드 정의 기반 고정 응답.
 - Phase 3 자체 모델 전환 시 이 인터페이스만 구현하면 교체 가능(서비스는 CLOVA 를 직접 import 하지 않음).
 
+### Type C 자유텍스트 구조화 (OpenAI)
+
+LLM 은 **텍스트 구조화 전용** — 이미지는 어떤 경로로도 LLM 에 전달하지 않는다(ADR-0001).
+- `LLMStructurer` Protocol(`app/infra/llm/base.py`)로 벤더 추상화, 구현체는 `OpenAIStructurer`
+  (Structured Outputs `json_schema + strict: true` 로 스키마 준수를 API 레벨 강제, pydantic 2차 방어).
+- 승급 체인(`app/services/type_c_structuring.py`, 상태 머신):
+  경량 모델 → 검증 실패/refusal 시 1회 재시도 → 상위 모델 승급(`flags.model_escalated` + `forced_hitl`)
+  → 그래도 실패 시 raw 만 저장 + HITL 강제.
+- 모델명은 하드코딩 금지 — `LLM_MODEL_PRIMARY`(기본 gpt-5-mini) / `LLM_MODEL_ESCALATION`(기본 gpt-5),
+  설정 변경만으로 교체 가능. 비용 가드: 필드별 호출 수/모델 로깅 + Type C 비중(설계 ~25%) 초과 경고.
+
 ### Type A 마킹 / Shade 인식 (LLM 0회)
 
 - Type A(`app/services/marking_detection.py`, OpenCV): 템플릿 체크박스 bbox 별 잉크 밀도 + 빨강/파랑 펜
