@@ -37,3 +37,6 @@ Thumbs.db
 # ---- Docker / local data ----
 .pgdata/
 .redisdata/
+
+# ---- 마킹 감지 e2e 데모 산출물 ----
+.demo_marking/
