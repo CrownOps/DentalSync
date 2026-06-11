@@ -14,9 +14,11 @@ import {
   updateFieldV1,
   confirmReviewOrderV1,
   fetchOrderStatus,
+  uploadOrder,
   ReviewQueueResponseV1,
   ReviewDetailResponse,
   OrderStatusResponse,
+  OrderIntakeResponse,
 } from "@/lib/api";
 
 // 폴링 중지 상태 — 파이프라인 종착 상태 도달 시 refetch 중단
@@ -70,15 +72,27 @@ export function useConfirmOrder(orderId: number) {
 }
 
 export function useOrderStatus(
-  orderId: number,
+  orderId: number | null,
 ): UseQueryResult<OrderStatusResponse> {
   return useQuery({
     queryKey: ["order-status", orderId],
-    queryFn: () => fetchOrderStatus(orderId),
+    queryFn: () => fetchOrderStatus(orderId!),
+    enabled: orderId !== null,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       if (status && POLL_STOP_STATUSES.has(status)) return false;
       return 2000;
+    },
+  });
+}
+
+/** 의뢰서 업로드 mutation — 성공 시 검토 큐 캐시 무효화 */
+export function useUploadOrder() {
+  const qc = useQueryClient();
+  return useMutation<OrderIntakeResponse, Error, FormData>({
+    mutationFn: (formData: FormData) => uploadOrder(formData),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["review-queue-v1"] });
     },
   });
 }

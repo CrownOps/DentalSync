@@ -1,6 +1,9 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+// Phase 1 단일 베어러 토큰 — 미설정이면 dev 모드(인증 패스스루)
+const API_AUTH_TOKEN = process.env.NEXT_PUBLIC_API_AUTH_TOKEN ?? "";
+
 export interface HealthResponse {
   status: string;
 }
@@ -16,9 +19,13 @@ export async function fetchHealth(): Promise<HealthResponse> {
 // ── 공통 fetch 래퍼 ───────────────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const defaultHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(API_AUTH_TOKEN ? { Authorization: `Bearer ${API_AUTH_TOKEN}` } : {}),
+  };
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers: { ...defaultHeaders, ...((init?.headers as Record<string, string>) ?? {}) },
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({ detail: res.statusText }));
@@ -29,6 +36,38 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
   return (await res.json()) as T;
+}
+
+// ── 의뢰서 업로드 ─────────────────────────────────────────────────────────────
+
+export interface OrderIntakeResponse {
+  order_id: number;
+  image_hash: string;
+  status: string;
+  cache_hit: boolean;
+  ocr_cached: boolean;
+}
+
+/** multipart/form-data 업로드 — Content-Type 을 직접 지정하지 않아야 브라우저가 boundary를 자동 설정한다. */
+export async function uploadOrder(formData: FormData): Promise<OrderIntakeResponse> {
+  const headers: Record<string, string> = {};
+  if (API_AUTH_TOKEN) {
+    headers["Authorization"] = `Bearer ${API_AUTH_TOKEN}`;
+  }
+  const res = await fetch(`${API_BASE_URL}/api/orders`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(
+      typeof detail.detail === "string"
+        ? detail.detail
+        : JSON.stringify(detail.detail),
+    );
+  }
+  return (await res.json()) as OrderIntakeResponse;
 }
 
 // ── 레거시 타입 (기존 /api/orders 호환) ──────────────────────────────────────
