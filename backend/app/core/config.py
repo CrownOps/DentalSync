@@ -28,10 +28,20 @@ class Settings(BaseSettings):
     # --- 데이터 스토어 ---
     database_url: str = "postgresql+psycopg://dentalsync:dentalsync@localhost:5432/dentalsync"
     redis_url: str = "redis://localhost:6379"
+    image_cache_ttl_seconds: int = 60 * 60 * 24 * 7  # 이미지 해시 캐시 TTL 7일
 
-    # --- 외부 API (Step 0 에서는 미사용, 키 자리만 확보) ---
+    # --- 이미지 업로드 검증 임계값 (외부화) ---
+    max_image_bytes: int = 15 * 1024 * 1024  # 15MB
+    min_image_width: int = 1000
+    min_image_height: int = 1000
+    blur_laplacian_min: float = 100.0  # Laplacian variance 가 이 값 미만이면 블러로 반려
+    pdf_render_dpi: int = 200  # PDF 1페이지 래스터화 DPI
+
+    # --- 외부 API: Naver CLOVA OCR (Template Basic) ---
     clova_api_key: str = ""
     clova_template_id: str = ""
+    clova_ocr_invoke_url: str = ""  # APIGW invoke URL
+    clova_ocr_secret: str = ""  # X-OCR-SECRET
     anthropic_api_key: str = ""
 
     # --- Cloudflare R2 (S3 호환 스토리지) ---
@@ -43,6 +53,10 @@ class Settings(BaseSettings):
 
     # --- 스코어링 설정 파일 경로 ---
     scoring_config_path: Path = BACKEND_DIR / "config" / "scoring.yaml"
+
+    # --- 도메인 사전 / 유사 매칭 ---
+    domain_dict_dir: Path = BACKEND_DIR / "data" / "domain_dict"
+    dict_fuzzy_threshold: float = 85.0  # rapidfuzz 점수(0~100) 이상이면 유사 보정 인정
 
     @property
     def cors_origins_list(self) -> list[str]:

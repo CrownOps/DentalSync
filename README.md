@@ -69,6 +69,28 @@ cd frontend
 npm run build
 ```
 
+## API
+
+| 메서드 | 경로 | 설명 |
+| --- | --- | --- |
+| GET | `/health` | 헬스 체크 |
+| POST | `/api/orders` | 의뢰서 이미지 업로드 (multipart: `image`, `lab_id`) |
+| POST | `/api/orders/{id}/retry-ocr` | OCR 수동 재시도 (실패 시 `ocr_failed`) |
+
+`POST /api/orders` 앞단 파이프라인: 검증(jpg/png/pdf·크기·해상도·블러) → 전처리(deskew/denoise/resize)
+→ SHA-256 해시 → Redis 캐시 조회(TTL 7일) → R2 업로드 + `orders` 생성(status `uploaded`).
+- 품질 미달 시 **422** + `{error_code, message, guidance}`(재촬영 안내). 블러는 OpenCV Laplacian
+  variance 로 측정하며 임계값은 `Settings`(env) 로 외부화(`BLUR_LAPLACIAN_MIN` 등).
+- 트랜잭션 단위는 의뢰서 — R2/DB 실패 시 부분 저장 없이 전체 롤백.
+
+### OCR 엔진 (추상화)
+
+`OCREngine` 인터페이스(`app/infra/ocr/base.py`)에 서비스가 의존하고, 구체 엔진은 DI 로 주입한다.
+- `CLOVAOCREngine`: CLOVA Template Basic 호출(의뢰서당 1회), 일시적 실패는 tenacity 지수 백오프 3회 재시도,
+  최종/파싱 실패는 `orders.status=ocr_failed` 처리 → `POST /api/orders/{id}/retry-ocr` 로 수동 재시도.
+- `MockOCREngine`: 테스트/로컬용. `app/infra/ocr/layout_v1_1_0.json` 의 OCR 필드 정의 기반 고정 응답.
+- Phase 3 자체 모델 전환 시 이 인터페이스만 구현하면 교체 가능(서비스는 CLOVA 를 직접 import 하지 않음).
+
 ## DB / 마이그레이션 (Alembic)
 
 DB 스키마는 SQLAlchemy 2.0 모델(`backend/app/db/models.py`) + Alembic 으로 관리한다.

@@ -22,7 +22,10 @@
       "Bash(git --no-pager log --oneline origin/main..HEAD)",
       "Bash(git rev-list *)",
       "Bash(git commit -q -m 'feat: DB 스키마 구현 \\(SQLAlchemy 2.0 + Alembic\\) *)",
-      "Bash(git --no-pager log --oneline -3)"
+      "Bash(git --no-pager log --oneline -3)",
+      "Bash(git checkout *)",
+      "Bash(git commit -q -m 'feat: 의뢰서 이미지 업로드 파이프라인 앞단 \\(POST /api/orders\\) *)",
+      "Bash(git commit -q -m 'feat: OCR 엔진 추상화 + CLOVA 구현체 + Mock *)"
     ]
   }
 }
