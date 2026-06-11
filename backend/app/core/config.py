@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     # --- 스코어링 설정 파일 경로 ---
     scoring_config_path: Path = BACKEND_DIR / "config" / "scoring.yaml"
 
+    # --- 도메인 사전 / 유사 매칭 ---
+    domain_dict_dir: Path = BACKEND_DIR / "data" / "domain_dict"
+    dict_fuzzy_threshold: float = 85.0  # rapidfuzz 점수(0~100) 이상이면 유사 보정 인정
+
     @property
     def cors_origins_list(self) -> list[str]:
         """콤마 구분 문자열 → origin 리스트."""
