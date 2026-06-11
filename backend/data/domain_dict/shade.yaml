@@ -1,0 +1,50 @@
+category: shade
+# VITA Classical (A1~D4) + VITA 3D-Master
+terms:
+  # --- VITA Classical ---
+  - {standard: A1, synonyms: [A1, a1]}
+  - {standard: A2, synonyms: [A2, a2]}
+  - {standard: A3, synonyms: [A3, a3]}
+  - {standard: A3.5, synonyms: [A3.5, a3.5, A35]}
+  - {standard: A4, synonyms: [A4, a4]}
+  - {standard: B1, synonyms: [B1, b1]}
+  - {standard: B2, synonyms: [B2, b2]}
+  - {standard: B3, synonyms: [B3, b3]}
+  - {standard: B4, synonyms: [B4, b4]}
+  - {standard: C1, synonyms: [C1, c1]}
+  - {standard: C2, synonyms: [C2, c2]}
+  - {standard: C3, synonyms: [C3, c3]}
+  - {standard: C4, synonyms: [C4, c4]}
+  - {standard: D2, synonyms: [D2, d2]}
+  - {standard: D3, synonyms: [D3, d3]}
+  - {standard: D4, synonyms: [D4, d4]}
+  # --- VITA 3D-Master ---
+  - {standard: 0M1, synonyms: [0M1, 0m1]}
+  - {standard: 0M2, synonyms: [0M2, 0m2]}
+  - {standard: 0M3, synonyms: [0M3, 0m3]}
+  - {standard: 1M1, synonyms: [1M1, 1m1]}
+  - {standard: 1M2, synonyms: [1M2, 1m2]}
+  - {standard: 2L1.5, synonyms: [2L1.5, 2l1.5]}
+  - {standard: 2L2.5, synonyms: [2L2.5, 2l2.5]}
+  - {standard: 2M1, synonyms: [2M1, 2m1]}
+  - {standard: 2M2, synonyms: [2M2, 2m2]}
+  - {standard: 2M3, synonyms: [2M3, 2m3]}
+  - {standard: 2R1.5, synonyms: [2R1.5, 2r1.5]}
+  - {standard: 2R2.5, synonyms: [2R2.5, 2r2.5]}
+  - {standard: 3L1.5, synonyms: [3L1.5, 3l1.5]}
+  - {standard: 3L2.5, synonyms: [3L2.5, 3l2.5]}
+  - {standard: 3M1, synonyms: [3M1, 3m1]}
+  - {standard: 3M2, synonyms: [3M2, 3m2]}
+  - {standard: 3M3, synonyms: [3M3, 3m3]}
+  - {standard: 3R1.5, synonyms: [3R1.5, 3r1.5]}
+  - {standard: 3R2.5, synonyms: [3R2.5, 3r2.5]}
+  - {standard: 4L1.5, synonyms: [4L1.5, 4l1.5]}
+  - {standard: 4L2.5, synonyms: [4L2.5, 4l2.5]}
+  - {standard: 4M1, synonyms: [4M1, 4m1]}
+  - {standard: 4M2, synonyms: [4M2, 4m2]}
+  - {standard: 4M3, synonyms: [4M3, 4m3]}
+  - {standard: 4R1.5, synonyms: [4R1.5, 4r1.5]}
+  - {standard: 4R2.5, synonyms: [4R2.5, 4r2.5]}
+  - {standard: 5M1, synonyms: [5M1, 5m1]}
+  - {standard: 5M2, synonyms: [5M2, 5m2]}
+  - {standard: 5M3, synonyms: [5M3, 5m3]}

@@ -10,15 +10,16 @@
 - 이미지: Pillow(Shade 색상), OpenCV(체크박스/마킹 감지)
 - 캐시: upstash-redis (이미지 해시 캐시 TTL 7일) / 큐: QStash
 - OCR: Naver CLOVA OCR (Template Basic) — 의뢰서당 1회 호출
-- LLM: Claude Haiku 4.5 (Type C 자유텍스트), Sonnet (불명확+HITL)
+- LLM: OpenAI — Type C 텍스트 구조화 전용(이미지 입력 금지). 모델명 하드코딩 금지,
+  LLM_MODEL_PRIMARY(경량)/LLM_MODEL_ESCALATION(승급) 설정으로 지정 (ADR-0001)
 - 배포: Railway (Dockerfile 없이 자동 감지)
 
 ## 스마트 라우팅 규칙 (v5, LLM 호출률 ~25%)
 - Type A (체크박스/마킹 ~40%): OpenCV 색상 감지 룰로 확정, LLM 0회
 - Type B (날짜/치아번호 ~30%): CLOVA + 정규식으로 확정, LLM 0회
 - Shade (~5%): PIL 색상 인식으로 확정, LLM 0회
-- Type C 자유텍스트 (~20%): CLOVA + Haiku 1회
-- Type C 불명확 (~5%): Sonnet 1회 + HITL 강제
+- Type C 자유텍스트 (~20%): CLOVA + 경량 모델(LLM_MODEL_PRIMARY) 1회
+- Type C 불명확 (~5%): 상위 모델(LLM_MODEL_ESCALATION) 승급 1회 + HITL 강제
 
 ## DB 저장 4종 (모든 필드에 대해)
 raw OCR 출력 / 보정값 / 신뢰도 점수 / 플래그(HITL 여부)

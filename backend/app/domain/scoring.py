@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from pydantic import BaseModel, Field, model_validator
+
+COMPONENTS = ("ocr_conf", "rule_pass", "dict_match")
 
 
 class ScoringWeights(BaseModel):
@@ -12,6 +16,25 @@ class ScoringWeights(BaseModel):
 
     def total(self) -> float:
         return self.ocr_conf + self.rule_pass + self.dict_match
+
+    def normalized_for(self, components: Iterable[str]) -> dict[str, float]:
+        """주어진 컴포넌트만 남기고 합이 1.0 이 되도록 가중치 재정규화.
+
+        사전에 해당 없는 필드는 dict_match 를 제외하고 호출하면, 남은 가중치가
+        비율을 유지한 채 1.0 으로 재정규화된다.
+        """
+        selected = list(dict.fromkeys(components))  # 중복 제거, 순서 유지
+        if not selected:
+            raise ValueError("컴포넌트가 비어 있습니다")
+        unknown = [c for c in selected if c not in COMPONENTS]
+        if unknown:
+            raise ValueError(f"알 수 없는 컴포넌트: {unknown}")
+
+        weights = {c: getattr(self, c) for c in selected}
+        total = sum(weights.values())
+        if total <= 0:
+            raise ValueError("선택한 컴포넌트의 가중치 합이 0 입니다")
+        return {c: w / total for c, w in weights.items()}
 
 
 class ScoringThresholds(BaseModel):

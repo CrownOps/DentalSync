@@ -22,7 +22,13 @@
       "Bash(git --no-pager log --oneline origin/main..HEAD)",
       "Bash(git rev-list *)",
       "Bash(git commit -q -m 'feat: DB 스키마 구현 \\(SQLAlchemy 2.0 + Alembic\\) *)",
-      "Bash(git --no-pager log --oneline -3)"
+      "Bash(git --no-pager log --oneline -3)",
+      "Bash(git checkout *)",
+      "Bash(git commit -q -m 'feat: 의뢰서 이미지 업로드 파이프라인 앞단 \\(POST /api/orders\\) *)",
+      "Bash(git commit -q -m 'feat: OCR 엔진 추상화 + CLOVA 구현체 + Mock *)",
+      "Bash(PYTHONIOENCODING=utf-8 uv run python scripts/test_marking.py --demo)",
+      "Bash(git commit -q -m 'feat: Type A 마킹 감지\\(OpenCV\\) + Shade 색상 인식\\(PIL\\) \\(LLM 0회\\) *)",
+      "Bash(git commit -q -m 'feat: Type C 자유텍스트 LLM 구조화 — OpenAI 전환 + 승급 체인 \\(ADR-0001\\) *)"
     ]
   }
 }

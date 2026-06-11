@@ -1,0 +1,1174 @@
+{
+  "layout_id": "dental_lab_request_ocr_layout",
+  "layout_name": "DentalSync 의뢰서 OCR 표준 레이아웃",
+  "version": "1.1.0",
+  "description": "종이/이미지 기반 치과기공물 제작 의뢰서를 CLOVA OCR 및 LLM 후처리로 구조화 입력·검수하기 위한 표준 레이아웃. v1.0.0 대비 필드 값 envelope 구조, PDF 레이아웃 맵 동기화, 법정 책임 필드, 검증 규칙 정합화를 반영한 버전.",
+
+  "changelog": [
+    "P0-1: OCR/LLM 유래 필드에 value envelope 구조 도입 (raw/value/confidence/bbox/status) — 아키텍처 v2.0의 4종 저장과 정합",
+    "P0-2: PDF 레이아웃 맵과 동기화 — source([0] 원본 정보), history([11] 작업 이력), tooth 섹션 분리, prosthesis_type, remake_reason, margin_position/offset, tray_included, tooth_vitality, shade_distribution, completed_date, clinic_contact 복원",
+    "P0-3: tooth_notation(FDI/Universal 표기 체계) 및 정규화 필드(tooth_numbers_fdi) 추가 — 파일명-치식 대조의 전제 보정",
+    "P0-4: required와 검증 규칙 severity 정합화 — severity_policy 명시, due_date/clinic_name은 필드 레벨 required 해제 후 교차 필드 규칙으로 강제",
+    "P1-5: doctor_license_no, signature_present, signature_crop 추가 — 법정 의뢰서 책임 항목 superset 충족",
+    "P1-6: 검증 규칙 추가 — crown_requires_shade, internal_body_due_date_mismatch, low_confidence_critical_field. scan_file_tooth_match가 참조하는 file_tooth_numbers를 derived_fields로 정의",
+    "P1-7: prosthesis_category 직교화 — category(형태) × type(작업) × material(재료) 3축 분리. 기존 zirconia_crown 등 재료 혼합 enum 제거",
+    "P1-8: remake_reason_code(enum) + remake_reason_text 추가 — 리메이크 원인 taxonomy 데이터 자산화",
+    "보너스(P2): critical/pii 필드 플래그, source.template_version, ocr_engine 기본값을 CLOVA(clova_template)로 교정 (v1 예시의 vision_ocr는 확정된 기술 스택과 불일치)"
+  ],
+
+  "conventions": {
+    "field_value_envelope": {
+      "description": "source가 OCR/LLM/빨간펜 인식 계열인 필드는 단일 값이 아니라 envelope 객체로 저장한다. 이를 통해 복합 신뢰도 분기, HITL bbox 하이라이트, 수정 시 training_labels 적재가 가능해진다.",
+      "applies_to_sources": [
+        "ocr",
+        "ocr_or_llm",
+        "llm",
+        "ocr_or_red_pen",
+        "ocr_or_template",
+        "ocr_or_calculated",
+        "ocr_or_manual",
+        "red_pen_or_manual",
+        "red_pen_or_request_form"
+      ],
+      "schema": {
+        "value": "정규화된 업무 사용값 (아키텍처 v2.0의 corrected에 대응)",
+        "raw": "CLOVA 원시 인식 텍스트 (아키텍처 v2.0의 raw에 대응)",
+        "bbox": "[x1, y1, x2, y2] — 원본 이미지 좌표. HITL 검토 UI 하이라이트용",
+        "confidence": "복합 신뢰도 점수 0.0~1.0 (아키텍처 v2.0의 confidence에 대응)",
+        "status": "auto_confirmed | needs_review | confirmed | rejected (아키텍처 v2.0의 flags에 대응)",
+        "corrected_by": "사람 수정 시 사용자 ID, 없으면 null",
+        "corrected_at": "ISO 8601 datetime, 없으면 null"
+      },
+      "training_label_trigger": "사람이 value를 수정하면 (raw, corrected, field_type, lab_id, corrected_by, created_at)을 training_labels에 자동 INSERT",
+      "example": {
+        "shade": {
+          "value": "A3",
+          "raw": "A3 (cervical A3.5)",
+          "bbox": [412, 230, 488, 256],
+          "confidence": 0.91,
+          "status": "needs_review",
+          "corrected_by": null,
+          "corrected_at": null
+        }
+      },
+      "note": "source가 system / manual / upload인 필드는 envelope 없이 plain 값으로 저장한다."
+    },
+    "severity_policy": {
+      "error": "확정 저장 불가 (REQ-002: 필수값 누락 시 저장 거부). 초안(draft) 상태 저장만 허용하며 검토 큐에 진입한다.",
+      "warning": "저장 가능. human_review_required = true 플래그를 세우고 검토 큐에 표시한다.",
+      "alignment_rule": "필드 레벨 required: true는 '확정 시 단일 필드 필수'를 의미하며 error 규칙과 짝을 이룬다. 교차 필드 조건(둘 중 하나만 있으면 됨)은 필드 레벨 required를 쓰지 않고 validation_rules로만 강제한다."
+    },
+    "confidence_thresholds": {
+      "default": 0.9,
+      "critical": 0.95,
+      "critical_fields": "critical: true 플래그가 붙은 필드 (치식, 쉐이드, 납기 계열)",
+      "note": "임계값 수치는 설정 파일로 외부화 (아키텍처 v2.0 §2.2). 본 스키마의 값은 기본값 문서화 목적."
+    },
+    "tooth_notation_policy": {
+      "description": "FDI와 Universal은 11~32 구간에서 번호가 겹쳐 오인 위험이 있다. 원본 표기(tooth_numbers)와 표기 체계(tooth_notation)를 보존하고, 시스템이 FDI로 정규화한 값(tooth_numbers_fdi)을 별도 저장한다. 파일 매칭·통계는 항상 tooth_numbers_fdi 기준으로 수행한다."
+    },
+    "pii_policy": {
+      "description": "pii: true 필드는 마스킹 표시, 접근 로그, 보존·파기 정책의 적용 대상이다. 의뢰서 원본 이미지 자체에도 환자 정보가 포함되므로 이미지 접근도 동일 정책을 따른다."
+    }
+  },
+
+  "derived_fields": [
+    {
+      "key": "file_tooth_numbers",
+      "description": "attachments.scan_files 파일명에서 정규식으로 추출한 치식 배열. FDI로 정규화하여 prosthesis 치식과 대조한다.",
+      "type": "array",
+      "item_type": "text",
+      "source": "system",
+      "derivation": "파일명 패턴 (예: case_36.stl → ['36']) → FDI 정규화",
+      "used_by": ["scan_file_tooth_match"]
+    }
+  ],
+
+  "sections": [
+    {
+      "section_key": "source",
+      "section_label": "원본 정보",
+      "description": "원본 양식 종류, 템플릿 버전, 이미지 ID, OCR 엔진 등 추적성과 학습 데이터 관리의 기준 정보",
+      "fields": [
+        {
+          "key": "source_template",
+          "label": "원본 양식",
+          "type": "select",
+          "required": true,
+          "source": "system",
+          "options": ["kangnange", "hanaro_edr", "line_lab", "unknown"],
+          "example": "kangnange"
+        },
+        {
+          "key": "template_version",
+          "label": "템플릿 버전",
+          "type": "text",
+          "required": true,
+          "source": "system",
+          "description": "치과/기공소 양식 개정 시 과거 데이터 해석 보존을 위한 버전 고정 (canonical + version 원칙)",
+          "example": "2026.05"
+        },
+        {
+          "key": "source_image_id",
+          "label": "원본 이미지 ID",
+          "type": "text",
+          "required": true,
+          "source": "system",
+          "example": "request_001"
+        },
+        {
+          "key": "ocr_engine",
+          "label": "OCR 엔진",
+          "type": "text",
+          "required": true,
+          "source": "system",
+          "example": "clova_template"
+        },
+        {
+          "key": "ocr_confidence_avg",
+          "label": "전체 OCR 평균 신뢰도",
+          "type": "number",
+          "required": false,
+          "source": "system",
+          "example": 0.87
+        }
+      ]
+    },
+    {
+      "section_key": "internal_routing",
+      "section_label": "내부 라우팅",
+      "description": "기공소 내부에서 수기 또는 빨간펜으로 표시한 작업 분류·납품·담당자 정보. 의뢰서 본문(치과 작성분)과 분리 보존한다.",
+      "fields": [
+        {
+          "key": "clinic_initial",
+          "label": "치과 앞글자",
+          "type": "text",
+          "required": false,
+          "source": "red_pen_or_manual",
+          "value_model": "envelope",
+          "example": "청"
+        },
+        {
+          "key": "internal_due_date",
+          "label": "납품 요구일(내부)",
+          "type": "datetime",
+          "required": false,
+          "source": "red_pen_or_request_form",
+          "value_model": "envelope",
+          "critical": true,
+          "example": "2026-06-04T09:00:00"
+        },
+        {
+          "key": "priority",
+          "label": "긴급 여부",
+          "type": "select",
+          "required": false,
+          "source": "manual_or_inferred",
+          "options": ["normal", "urgent", "unknown"],
+          "example": "normal"
+        },
+        {
+          "key": "assignee",
+          "label": "담당자",
+          "type": "text",
+          "required": false,
+          "source": "manual",
+          "example": "홍길동"
+        },
+        {
+          "key": "internal_memo",
+          "label": "기공소 내부 메모",
+          "type": "text",
+          "required": false,
+          "source": "manual",
+          "example": ""
+        }
+      ]
+    },
+    {
+      "section_key": "case_basic",
+      "section_label": "케이스 기본정보",
+      "description": "치과, 기공소, 의뢰자(책임 식별), 환자, 접수일, 납기 등 케이스 식별 정보",
+      "fields": [
+        {
+          "key": "clinic_name",
+          "label": "치과명",
+          "type": "text",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "description": "required는 false지만 required_clinic_identity 규칙으로 교차 강제 (빨간펜 앞글자로 대체 가능)",
+          "example": "청담세브란스치과"
+        },
+        {
+          "key": "clinic_contact",
+          "label": "치과 주소/연락처",
+          "type": "text",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "example": "02-000-0000"
+        },
+        {
+          "key": "lab_name",
+          "label": "기공소명",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_template",
+          "value_model": "envelope",
+          "example": "강냉이닷컴 Dental Lab"
+        },
+        {
+          "key": "doctor_name",
+          "label": "담당 원장",
+          "type": "text",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "example": "권혁준"
+        },
+        {
+          "key": "doctor_license_no",
+          "label": "치과의사 면허번호",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_manual",
+          "value_model": "envelope",
+          "description": "법정 의뢰서 책임 식별 항목. 양식에 따라 부재할 수 있어 required는 false",
+          "example": ""
+        },
+        {
+          "key": "signature_present",
+          "label": "서명/날인 존재 여부",
+          "type": "select",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "options": ["yes", "no", "unknown"],
+          "description": "서명 텍스트 판독이 아니라 서명·날인 영역의 존재 감지. doctor_name과 별개 정보",
+          "example": "yes"
+        },
+        {
+          "key": "signature_crop",
+          "label": "서명 영역 crop",
+          "type": "image_crop",
+          "required": false,
+          "source": "system",
+          "example": "crop_signature_001.png"
+        },
+        {
+          "key": "patient_name",
+          "label": "환자명",
+          "type": "text",
+          "required": true,
+          "source": "ocr",
+          "value_model": "envelope",
+          "pii": true,
+          "example": "조은영"
+        },
+        {
+          "key": "chart_no",
+          "label": "차트번호",
+          "type": "text",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "pii": true,
+          "example": "2160"
+        },
+        {
+          "key": "sex",
+          "label": "성별",
+          "type": "select",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "pii": true,
+          "options": ["male", "female", "unknown"],
+          "example": "female"
+        },
+        {
+          "key": "age",
+          "label": "나이",
+          "type": "number",
+          "required": false,
+          "source": "ocr_or_calculated",
+          "value_model": "envelope",
+          "pii": true,
+          "example": 46
+        },
+        {
+          "key": "birth_date",
+          "label": "생년월일",
+          "type": "date",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "pii": true,
+          "example": "1979-07-07"
+        },
+        {
+          "key": "received_date",
+          "label": "접수일",
+          "type": "date",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "example": "2026-05-28"
+        },
+        {
+          "key": "due_date",
+          "label": "납기일(본문)",
+          "type": "datetime",
+          "required": false,
+          "source": "ocr_or_red_pen",
+          "value_model": "envelope",
+          "critical": true,
+          "description": "required는 false지만 required_due_date 규칙으로 교차 강제 (internal_due_date로 대체 가능)",
+          "example": "2026-06-04T09:00:00"
+        },
+        {
+          "key": "completed_date",
+          "label": "완성일",
+          "type": "date",
+          "required": false,
+          "source": "ocr_or_manual",
+          "value_model": "envelope",
+          "example": null
+        }
+      ]
+    },
+    {
+      "section_key": "prosthesis",
+      "section_label": "보철 작업 정보",
+      "description": "보철 형태(category) × 작업 종류(type) × 재료(material) 3축 직교 구조. 리메이크 여부와 원인 코드 포함",
+      "fields": [
+        {
+          "key": "prosthesis_category",
+          "label": "보철 형태",
+          "type": "select",
+          "required": true,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "options": [
+            "crown",
+            "bridge",
+            "inlay",
+            "onlay",
+            "implant_prosthesis",
+            "denture",
+            "other",
+            "unknown"
+          ],
+          "example": "implant_prosthesis"
+        },
+        {
+          "key": "prosthesis_type",
+          "label": "작업 종류",
+          "type": "array",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "item_options": [
+            "full_crown",
+            "coping",
+            "custom_abutment",
+            "framework",
+            "provisional",
+            "other",
+            "unknown"
+          ],
+          "example": ["custom_abutment", "full_crown"]
+        },
+        {
+          "key": "material",
+          "label": "재료",
+          "type": "array",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "item_options": [
+            "zirconia",
+            "titanium",
+            "gold",
+            "pfm",
+            "resin",
+            "pmma",
+            "ceramic",
+            "lithium_disilicate",
+            "unknown"
+          ],
+          "example": ["zirconia", "titanium"]
+        },
+        {
+          "key": "work_item_raw",
+          "label": "작업 표기 원문",
+          "type": "text",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "description": "'Zir cr', 'zirconia cr.' 등 사전 보정 입력용 원문",
+          "example": "custom abutment + zirconia cr."
+        },
+        {
+          "key": "connection_type",
+          "label": "연결 여부",
+          "type": "select",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "options": ["splint", "single", "unknown"],
+          "example": "single"
+        },
+        {
+          "key": "is_remake",
+          "label": "Remake 여부",
+          "type": "boolean",
+          "required": false,
+          "source": "ocr_or_manual",
+          "value_model": "envelope",
+          "example": false
+        },
+        {
+          "key": "remake_reason_code",
+          "label": "Remake 원인 코드",
+          "type": "select",
+          "required": false,
+          "source": "ocr_or_manual",
+          "value_model": "envelope",
+          "options": [
+            "shade_mismatch",
+            "fit_failure",
+            "occlusion",
+            "contact",
+            "margin",
+            "fracture",
+            "instruction_unclear",
+            "delivery_damage",
+            "other",
+            "unknown"
+          ],
+          "description": "리메이크 원인 taxonomy 축적용. 자유서술은 remake_reason_text에 보존",
+          "example": null
+        },
+        {
+          "key": "remake_reason_text",
+          "label": "Remake 사유(원문)",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_manual",
+          "value_model": "envelope",
+          "example": ""
+        }
+      ]
+    },
+    {
+      "section_key": "tooth",
+      "section_label": "치식·부위 정보",
+      "description": "STL/스캔 파일 매칭의 핵심. 원본 표기 보존 + FDI 정규화 병행",
+      "fields": [
+        {
+          "key": "tooth_numbers",
+          "label": "치식(원본 표기)",
+          "type": "array",
+          "required": true,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "critical": true,
+          "item_type": "text",
+          "example": ["36", "37"]
+        },
+        {
+          "key": "tooth_notation",
+          "label": "치식 표기 체계",
+          "type": "select",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "options": ["fdi", "universal", "palmer", "handwritten_unclear", "unknown"],
+          "description": "FDI/Universal은 11~32 구간 번호가 겹치므로 표기 체계 식별이 매칭의 전제",
+          "example": "fdi"
+        },
+        {
+          "key": "tooth_numbers_fdi",
+          "label": "치식(FDI 정규화)",
+          "type": "array",
+          "required": false,
+          "source": "system",
+          "item_type": "text",
+          "description": "tooth_numbers + tooth_notation으로부터 시스템이 정규화. 파일 매칭·통계의 기준값",
+          "example": ["36", "37"]
+        },
+        {
+          "key": "tooth_region",
+          "label": "상악/하악",
+          "type": "select",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "options": ["maxilla", "mandible", "both", "unknown"],
+          "example": "mandible"
+        },
+        {
+          "key": "tooth_side",
+          "label": "좌/우",
+          "type": "select",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "options": ["left", "right", "both", "unknown"],
+          "example": "left"
+        },
+        {
+          "key": "tooth_diagram_crop",
+          "label": "치식 도식 crop",
+          "type": "image_crop",
+          "required": false,
+          "source": "system",
+          "example": "crop_tooth_diagram_001.png"
+        },
+        {
+          "key": "tooth_validation_status",
+          "label": "치식 검증 상태",
+          "type": "select",
+          "required": false,
+          "source": "system",
+          "options": ["pass", "warning", "fail"],
+          "example": "pass"
+        }
+      ]
+    },
+    {
+      "section_key": "implant",
+      "section_label": "임플란트 정보",
+      "description": "임플란트 브랜드, 시스템, 플랫폼, 결합부, 커스텀 어버트먼트 여부",
+      "fields": [
+        {
+          "key": "is_implant_case",
+          "label": "임플란트 케이스 여부",
+          "type": "boolean",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "example": true
+        },
+        {
+          "key": "implant_manufacturer",
+          "label": "임플란트 제조사",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "description": "브랜드 사전(오스템, 덴티움, 메가젠 등) 보정 대상",
+          "example": "Osstem"
+        },
+        {
+          "key": "implant_system",
+          "label": "시스템",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "example": "TS III"
+        },
+        {
+          "key": "implant_product_name",
+          "label": "제품명",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "example": ""
+        },
+        {
+          "key": "platform_size",
+          "label": "Platform Size",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "example": "5.0x6.0"
+        },
+        {
+          "key": "connection_hex_type",
+          "label": "Hex/Non-Hex",
+          "type": "select",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "options": ["hexa", "non_hexa", "unknown"],
+          "example": "hexa"
+        },
+        {
+          "key": "is_custom_abutment",
+          "label": "Custom Abutment 여부",
+          "type": "boolean",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "example": true
+        },
+        {
+          "key": "implant_raw_text",
+          "label": "임플란트 표기 원문",
+          "type": "text",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "example": "osstem TS III 5.0x6.0 hexa"
+        }
+      ]
+    },
+    {
+      "section_key": "abutment_scanbody",
+      "section_label": "어버트먼트/스캔바디 정보",
+      "description": "어버트먼트 재료·마진 지시와 스캔바디 정보를 분리 보존",
+      "fields": [
+        {
+          "key": "abutment_material",
+          "label": "Abutment 재료",
+          "type": "select",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "options": ["zirconia", "titanium", "unknown"],
+          "example": "titanium"
+        },
+        {
+          "key": "margin_position",
+          "label": "Margin Position",
+          "type": "select",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "options": ["supra", "eq", "sub", "unknown"],
+          "example": null
+        },
+        {
+          "key": "margin_offset_mm",
+          "label": "Margin 값(mm)",
+          "type": "number",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "options": [0, 0.2, 0.5, 1, 1.5, 2],
+          "example": null
+        },
+        {
+          "key": "scanbody_manufacturer",
+          "label": "Scanbody 제조사",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "example": "GMS"
+        },
+        {
+          "key": "scanbody_size",
+          "label": "Scanbody 사이즈",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "example": "regular L"
+        },
+        {
+          "key": "scanbody_raw_text",
+          "label": "Scanbody 원문",
+          "type": "text",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "example": "GMS scan body regular L"
+        },
+        {
+          "key": "scanbody_validation_status",
+          "label": "스캔바디 검증 상태",
+          "type": "select",
+          "required": false,
+          "source": "system",
+          "options": ["pass", "warning", "fail"],
+          "example": "pass"
+        }
+      ]
+    },
+    {
+      "section_key": "manufacturing_conditions",
+      "section_label": "제작 조건",
+      "description": "쉐이드, 대합치, 바이트, Tray, 교합기, 컨택, 마진, 변색, SCRP/Hook 등 제작 세부 조건",
+      "fields": [
+        {
+          "key": "shade",
+          "label": "Shade",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "critical": true,
+          "description": "VITA 코드 정규화 대상. crown_requires_shade 규칙으로 심미 보철 시 누락 경고",
+          "example": "A3"
+        },
+        {
+          "key": "shade_distribution",
+          "label": "색의 분포 도식",
+          "type": "image_crop",
+          "required": false,
+          "source": "system",
+          "example": null
+        },
+        {
+          "key": "opposing_tooth",
+          "label": "대합치",
+          "type": "select",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "options": ["yes", "no", "unknown"],
+          "example": "unknown"
+        },
+        {
+          "key": "bite_record",
+          "label": "Bite",
+          "type": "select",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "options": ["yes", "no", "unknown"],
+          "example": "unknown"
+        },
+        {
+          "key": "tray_included",
+          "label": "Tray",
+          "type": "select",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "options": ["yes", "no", "not_applicable", "unknown"],
+          "example": "unknown"
+        },
+        {
+          "key": "articulator",
+          "label": "교합기",
+          "type": "select",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "options": ["yes", "no", "unknown"],
+          "example": "unknown"
+        },
+        {
+          "key": "contact_instruction",
+          "label": "Contact 요청",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "example": "컨택 신경써주세요"
+        },
+        {
+          "key": "bite_preference",
+          "label": "Bite 요청",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "example": ""
+        },
+        {
+          "key": "margin_instruction",
+          "label": "Margin 요청",
+          "type": "text",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "example": ""
+        },
+        {
+          "key": "tooth_vitality",
+          "label": "변색 정도",
+          "type": "select",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "options": ["vital", "non_vital", "unknown"],
+          "example": "unknown"
+        },
+        {
+          "key": "special_flags",
+          "label": "SCRP/Hook/기타",
+          "type": "array",
+          "required": false,
+          "source": "ocr_or_llm",
+          "value_model": "envelope",
+          "item_options": [
+            "scrp",
+            "hook",
+            "embrasure",
+            "inner_adjustment",
+            "contact",
+            "bite",
+            "etc"
+          ],
+          "example": ["scrp"]
+        }
+      ]
+    },
+    {
+      "section_key": "note",
+      "section_label": "Note",
+      "description": "OCR 원문, LLM 요약, 구조화 추출 결과, 해석 실패 단어. 사람 검수 플래그는 validation 섹션에서 단일 관리한다(중복 제거)",
+      "fields": [
+        {
+          "key": "ocr_raw_text",
+          "label": "OCR 원문",
+          "type": "textarea",
+          "required": false,
+          "source": "ocr",
+          "value_model": "envelope",
+          "example": "#36, 37 custom abutment ... zirconia cr. ... 컨택과 교합 신경써주세요."
+        },
+        {
+          "key": "llm_summary",
+          "label": "LLM 요약",
+          "type": "textarea",
+          "required": false,
+          "source": "llm",
+          "value_model": "envelope",
+          "example": "36, 37번 커스텀 어버트먼트 및 지르코니아 크라운 제작. 오스템 TS III, GMS regular L scan body. 컨택/교합 주의."
+        },
+        {
+          "key": "structured_extraction",
+          "label": "구조화 추출 결과",
+          "type": "object",
+          "required": false,
+          "source": "llm",
+          "value_model": "envelope",
+          "example": {
+            "tooth_numbers": ["36", "37"],
+            "work": ["custom_abutment", "full_crown"],
+            "implant": "Osstem TS III",
+            "scanbody": "GMS regular L",
+            "shade": "A3"
+          }
+        },
+        {
+          "key": "unparsed_tokens",
+          "label": "해석 실패 단어",
+          "type": "array",
+          "required": false,
+          "source": "llm",
+          "item_type": "text",
+          "description": "도메인 사전 확장 후보의 1차 소스",
+          "example": []
+        }
+      ]
+    },
+    {
+      "section_key": "attachments",
+      "section_label": "첨부자료",
+      "description": "케이스 패키지: 의뢰서 이미지, 스캔 파일, 쉐이드 사진, 구강 사진, 바이트 파일, 메시지 첨부",
+      "fields": [
+        {
+          "key": "request_image",
+          "label": "의뢰서 이미지",
+          "type": "file",
+          "required": true,
+          "source": "upload",
+          "pii": true,
+          "allowed_extensions": ["jpg", "jpeg", "png", "pdf"],
+          "example": "request_001.png"
+        },
+        {
+          "key": "scan_files",
+          "label": "STL/PLY/OBJ",
+          "type": "file_array",
+          "required": false,
+          "source": "upload",
+          "allowed_extensions": ["stl", "ply", "obj"],
+          "example": ["case_36.stl", "case_37.stl"]
+        },
+        {
+          "key": "shade_photos",
+          "label": "쉐이드 사진",
+          "type": "file_array",
+          "required": false,
+          "source": "upload",
+          "pii": true,
+          "allowed_extensions": ["jpg", "jpeg", "png"],
+          "example": []
+        },
+        {
+          "key": "intraoral_photos",
+          "label": "구강 사진",
+          "type": "file_array",
+          "required": false,
+          "source": "upload",
+          "pii": true,
+          "allowed_extensions": ["jpg", "jpeg", "png"],
+          "example": []
+        },
+        {
+          "key": "bite_files",
+          "label": "바이트 파일",
+          "type": "file_array",
+          "required": false,
+          "source": "upload",
+          "allowed_extensions": ["stl", "ply", "obj", "jpg", "jpeg", "png", "pdf"],
+          "example": []
+        },
+        {
+          "key": "message_attachments",
+          "label": "카톡/이메일 메모",
+          "type": "file_array",
+          "required": false,
+          "source": "upload_or_manual",
+          "pii": true,
+          "allowed_extensions": ["txt", "pdf", "jpg", "jpeg", "png"],
+          "example": []
+        }
+      ]
+    },
+    {
+      "section_key": "validation",
+      "section_label": "검증 상태",
+      "description": "OCR 및 구조화 결과의 누락, 불명확, 불일치, 사람 검수 필요 여부. FILE-001~004 요구사항과 대응",
+      "fields": [
+        {
+          "key": "missing_required_fields",
+          "label": "필수값 누락",
+          "type": "array",
+          "required": false,
+          "source": "system",
+          "item_type": "text",
+          "example": []
+        },
+        {
+          "key": "tooth_ambiguous",
+          "label": "치식 불명확",
+          "type": "boolean",
+          "required": false,
+          "source": "system",
+          "example": false
+        },
+        {
+          "key": "due_date_ambiguous",
+          "label": "납기 불명확",
+          "type": "boolean",
+          "required": false,
+          "source": "system",
+          "example": false
+        },
+        {
+          "key": "shade_missing",
+          "label": "쉐이드 누락",
+          "type": "boolean",
+          "required": false,
+          "source": "system",
+          "example": false
+        },
+        {
+          "key": "implant_info_missing",
+          "label": "임플란트 정보 누락",
+          "type": "boolean",
+          "required": false,
+          "source": "system",
+          "example": false
+        },
+        {
+          "key": "scanbody_info_missing",
+          "label": "스캔바디 정보 누락",
+          "type": "boolean",
+          "required": false,
+          "source": "system",
+          "example": false
+        },
+        {
+          "key": "file_tooth_mismatch",
+          "label": "파일명-치식 불일치",
+          "type": "boolean",
+          "required": false,
+          "source": "system",
+          "example": false
+        },
+        {
+          "key": "internal_body_due_mismatch",
+          "label": "내부/본문 납기 불일치",
+          "type": "boolean",
+          "required": false,
+          "source": "system",
+          "example": false
+        },
+        {
+          "key": "warnings",
+          "label": "경고 목록",
+          "type": "array",
+          "required": false,
+          "source": "system",
+          "item_type": "text",
+          "example": []
+        },
+        {
+          "key": "human_review_required",
+          "label": "사람 검수 필요",
+          "type": "boolean",
+          "required": true,
+          "source": "system",
+          "example": true
+        }
+      ]
+    },
+    {
+      "section_key": "history",
+      "section_label": "작업 이력",
+      "description": "REQ-003: 수정 전후 이력 기록. 의뢰자/검수자/확정자 추적",
+      "fields": [
+        {
+          "key": "created_by",
+          "label": "최초 생성 주체",
+          "type": "text",
+          "required": true,
+          "source": "system",
+          "example": "ocr"
+        },
+        {
+          "key": "created_at",
+          "label": "생성 시각",
+          "type": "datetime",
+          "required": true,
+          "source": "system",
+          "example": "2026-06-09T00:00:00"
+        },
+        {
+          "key": "reviewed_by",
+          "label": "검수자",
+          "type": "text",
+          "required": false,
+          "source": "system",
+          "example": null
+        },
+        {
+          "key": "reviewed_at",
+          "label": "검수 시각",
+          "type": "datetime",
+          "required": false,
+          "source": "system",
+          "example": null
+        },
+        {
+          "key": "confirmed_by_lab",
+          "label": "기공소 확정 여부",
+          "type": "boolean",
+          "required": true,
+          "source": "system",
+          "example": false
+        },
+        {
+          "key": "confirmed_at",
+          "label": "확정 시각",
+          "type": "datetime",
+          "required": false,
+          "source": "system",
+          "example": null
+        },
+        {
+          "key": "change_log",
+          "label": "변경 이력",
+          "type": "array",
+          "required": false,
+          "source": "system",
+          "item_schema": {
+            "field": "변경된 필드 경로",
+            "before": "변경 전 값",
+            "after": "변경 후 값",
+            "by": "수정자 ID",
+            "at": "ISO datetime"
+          },
+          "example": []
+        }
+      ]
+    }
+  ],
+
+  "validation_rules": [
+    {
+      "rule_key": "required_patient_name",
+      "description": "환자명이 없으면 케이스 식별 불가",
+      "condition": "case_basic.patient_name.value == null",
+      "severity": "error",
+      "sets_flag": "missing_required_fields",
+      "message": "환자명이 누락되었습니다."
+    },
+    {
+      "rule_key": "required_tooth_numbers",
+      "description": "치식이 없으면 보철 제작 대상 확인 불가",
+      "condition": "tooth.tooth_numbers.value.length == 0",
+      "severity": "error",
+      "sets_flag": "missing_required_fields",
+      "message": "치식 정보가 누락되었습니다."
+    },
+    {
+      "rule_key": "required_clinic_identity",
+      "description": "치과명과 빨간펜 치과 앞글자가 모두 없으면 거래처 식별 불가",
+      "condition": "case_basic.clinic_name.value == null AND internal_routing.clinic_initial.value == null",
+      "severity": "warning",
+      "sets_flag": "missing_required_fields",
+      "message": "치과 식별 정보(치과명/내부 표기)가 누락되었습니다."
+    },
+    {
+      "rule_key": "required_due_date",
+      "description": "본문 납기와 내부 납품 요구일이 모두 없으면 작업 우선순위 설정 불가",
+      "condition": "case_basic.due_date.value == null AND internal_routing.internal_due_date.value == null",
+      "severity": "warning",
+      "sets_flag": "due_date_ambiguous",
+      "message": "납품 요구일이 누락되었습니다."
+    },
+    {
+      "rule_key": "internal_body_due_date_mismatch",
+      "description": "빨간펜 납품일과 의뢰서 본문 납기일이 다르면 확인 필요",
+      "condition": "case_basic.due_date.value != null AND internal_routing.internal_due_date.value != null AND date(case_basic.due_date.value) != date(internal_routing.internal_due_date.value)",
+      "severity": "warning",
+      "sets_flag": "internal_body_due_mismatch",
+      "message": "내부 표시 납품일과 의뢰서 본문 납기가 일치하지 않습니다."
+    },
+    {
+      "rule_key": "implant_case_requires_manufacturer",
+      "description": "임플란트 케이스인데 제조사가 없으면 확인 필요",
+      "condition": "(prosthesis.prosthesis_category.value == 'implant_prosthesis' OR implant.is_implant_case.value == true) AND implant.implant_manufacturer.value == null",
+      "severity": "warning",
+      "sets_flag": "implant_info_missing",
+      "message": "임플란트 제조사 정보가 누락되었습니다."
+    },
+    {
+      "rule_key": "custom_abutment_requires_scanbody",
+      "description": "커스텀 어버트먼트 케이스는 스캔바디 정보 확인 필요",
+      "condition": "implant.is_custom_abutment.value == true AND abutment_scanbody.scanbody_manufacturer.value == null AND abutment_scanbody.scanbody_size.value == null",
+      "severity": "warning",
+      "sets_flag": "scanbody_info_missing",
+      "message": "커스텀 어버트먼트 케이스이나 스캔바디 정보가 불명확합니다."
+    },
+    {
+      "rule_key": "crown_requires_shade",
+      "description": "외형(심미면) 제작이 포함된 케이스에서 쉐이드 누락은 리메이크 직결 위험",
+      "condition": "prosthesis.prosthesis_category.value IN ['crown', 'bridge', 'implant_prosthesis', 'inlay', 'onlay', 'denture'] AND ('full_crown' IN prosthesis.prosthesis_type.value OR prosthesis.prosthesis_type.value.length == 0) AND manufacturing_conditions.shade.value == null",
+      "severity": "warning",
+      "sets_flag": "shade_missing",
+      "message": "쉐이드가 누락되었습니다. (coping/abutment 단독 작업은 제외)"
+    },
+    {
+      "rule_key": "scan_file_tooth_match",
+      "description": "첨부된 STL 파일명에서 추출한 치식(derived.file_tooth_numbers)과 의뢰서 치식(FDI 정규화)이 일치하는지 확인",
+      "condition": "attachments.scan_files.length > 0 AND derived.file_tooth_numbers != tooth.tooth_numbers_fdi",
+      "severity": "warning",
+      "sets_flag": "file_tooth_mismatch",
+      "message": "첨부 파일명과 치식 정보가 일치하지 않을 수 있습니다."
+    },
+    {
+      "rule_key": "low_confidence_critical_field",
+      "description": "치명 필드(critical: true)의 복합 신뢰도가 임계값(0.95) 미만이면 자동 확정을 금지하고 검수 큐로 보낸다 (아키텍처 v2.0 §2.2)",
+      "condition": "ANY field WHERE field.critical == true AND field.confidence < thresholds.critical",
+      "severity": "warning",
+      "sets_flag": "human_review_required",
+      "message": "치명 필드의 인식 신뢰도가 낮아 검수가 필요합니다."
+    }
+  ]
+}
