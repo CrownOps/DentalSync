@@ -27,7 +27,6 @@ from app.infra.ocr.base import (
     OCRTransientError,
 )
 
-
 # CLOVA images[].format 은 실제 파일 포맷과 일치해야 함(불일치 시 HTTP 400).
 # 클라이언트 content-type 을 믿지 않고 매직 바이트로 판별한다.
 _FORMAT_MAGIC: tuple[tuple[bytes, str], ...] = (
