@@ -49,7 +49,7 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
     app.add_exception_handler(ImageValidationError, on_image_validation_error)  # type: ignore[arg-type]
-    app.add_exception_handler(Exception, on_unhandled_error)  # type: ignore[arg-type]
+    app.add_exception_handler(Exception, on_unhandled_error)
 
     app.include_router(health_router)
     app.include_router(orders_router)

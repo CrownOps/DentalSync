@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from typing import Any
 
 from app.core.config import get_settings
 
@@ -19,7 +20,7 @@ def get_engine() -> Engine:
     if _engine is None:
         url = get_settings().database_url
         # SQLite는 멀티스레드 FastAPI 환경에서 check_same_thread=False 필요
-        kwargs: dict = {"future": True, "pool_pre_ping": True}
+        kwargs: dict[str, Any] = {"future": True, "pool_pre_ping": True}
         if url.startswith("sqlite"):
             kwargs["connect_args"] = {"check_same_thread": False}
         _engine = create_engine(url, **kwargs)
