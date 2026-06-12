@@ -167,9 +167,11 @@ def test_flags_needs_review_synced_with_field_status(
     with session_factory() as s:
         fields = {f.field_key: f for f in s.query(OrderField).filter_by(order_id=order_id)}
         assert fields["field_a"].status == FieldStatus.confirmed
-        assert fields["field_a"].flags["needs_review"] is False
+        flags_a = fields["field_a"].flags or {}
+        assert flags_a["needs_review"] is False
         assert fields["field_b"].status == FieldStatus.needs_review
-        assert fields["field_b"].flags["needs_review"] is True
+        flags_b = fields["field_b"].flags or {}
+        assert flags_b["needs_review"] is True
 
 
 def test_exception_rolls_back_order_status_to_routing(
