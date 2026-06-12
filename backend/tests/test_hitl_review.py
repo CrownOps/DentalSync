@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -82,7 +83,7 @@ def client(session_factory: sessionmaker[Session]) -> Iterator[TestClient]:
 def _make_order(
     factory: sessionmaker[Session],
     status: OrderStatus = OrderStatus.needs_review,
-    fields: list[dict] | None = None,
+    fields: list[dict[str, Any]] | None = None,
 ) -> Order:
     with factory() as s:
         order = Order(

@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -79,7 +80,7 @@ def client(session_factory: sessionmaker[Session]) -> Iterator[TestClient]:
 
 def _seed_order(
     session_factory: sessionmaker[Session],
-    fields: list[dict],
+    fields: list[dict[str, Any]],
 ) -> int:
     with session_factory() as s:
         order = Order(
@@ -187,6 +188,8 @@ def test_confirm_records_audit_log(
         logs = s.query(FieldAuditLog).all()
         assert len(logs) == 1
         log = logs[0]
+        assert log.before is not None
+        assert log.after is not None
         assert log.before["corrected_value"] == "2025-07-01"
         assert log.after["corrected_value"] == "2025-07-15"
         assert log.actor == "human"
