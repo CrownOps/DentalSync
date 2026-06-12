@@ -2,18 +2,29 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+)
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.deps import (
     get_cache,
     get_db,
+    get_db_session_factory,
     get_ocr_engine,
     get_settings_dep,
     get_storage,
+    require_auth,
 )
 from app.core.config import Settings
 from app.db.models import Order, OrderField
@@ -40,7 +51,49 @@ from app.services.ocr_runner import run_ocr
 from app.services.order_confirm import confirm_order
 from app.services.order_intake import intake_order
 
-router = APIRouter(prefix="/api", tags=["orders"])
+router = APIRouter(prefix="/api", tags=["orders"], dependencies=[Depends(require_auth)])
+
+logger = logging.getLogger(__name__)
+
+
+async def _run_ocr_pipeline(
+    *,
+    order_id: int,
+    session_factory: sessionmaker[Session],
+    engine: OCREngine,
+    storage: StorageClient,
+    settings: Settings,
+) -> None:
+    """업로드 직후 백그라운드 OCR 파이프라인 (Phase 1: BackgroundTasks, Phase 2: QStash).
+
+    요청 스코프 세션은 응답 후 닫히므로 자체 세션을 생성한다.
+    실패해도 응답에는 영향 없음 — 상태는 ocr_failed 로 남고 수동 재시도 대상.
+    """
+    session = session_factory()
+    try:
+        await run_ocr(
+            session=session,
+            order_id=order_id,
+            engine=engine,
+            storage=storage,
+            settings=settings,
+        )
+    except OCRExtractionError:
+        # run_ocr 가 이미 status=ocr_failed 커밋 — 프론트 폴링이 재시도 UI 로 분기
+        logger.warning("백그라운드 OCR 실패(order_id=%s) — 수동 재시도 대상", order_id)
+    except Exception:
+        logger.exception("백그라운드 파이프라인 오류(order_id=%s)", order_id)
+        session.rollback()
+        order = session.get(Order, order_id)
+        if order is not None and order.status not in (
+            OrderStatus.needs_review,
+            OrderStatus.auto_confirmed,
+            OrderStatus.confirmed,
+        ):
+            order.status = OrderStatus.ocr_failed
+            session.commit()
+    finally:
+        session.close()
 
 
 @router.post("/orders", response_model=OrderIntakeResponse, status_code=201)
@@ -51,6 +104,9 @@ async def create_order(
     storage: Annotated[StorageClient, Depends(get_storage)],
     cache: Annotated[CacheClient, Depends(get_cache)],
     settings: Annotated[Settings, Depends(get_settings_dep)],
+    engine: Annotated[OCREngine, Depends(get_ocr_engine)],
+    session_factory: Annotated[sessionmaker[Session], Depends(get_db_session_factory)],
+    background_tasks: BackgroundTasks,
 ) -> OrderIntakeResponse:
     data = await image.read()
     try:
@@ -66,6 +122,16 @@ async def create_order(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except StorageError as exc:
         raise HTTPException(status_code=502, detail=f"스토리지 오류: {exc}") from exc
+
+    # 응답(201) 직후 OCR→라우팅→스코어링 파이프라인 실행 — 프론트는 상태 폴링으로 추적
+    background_tasks.add_task(
+        _run_ocr_pipeline,
+        order_id=result.order_id,
+        session_factory=session_factory,
+        engine=engine,
+        storage=storage,
+        settings=settings,
+    )
 
     return OrderIntakeResponse.from_result(result)
 

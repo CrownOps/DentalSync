@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.health import router as health_router
 from app.api.orders import router as orders_router
@@ -43,6 +44,15 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(orders_router)
     app.include_router(review_router)
+
+    # storage_backend=local: LocalDirStorage 가 만드는 URL(/local-files/)을 서빙
+    if settings.storage_backend == "local":
+        settings.local_storage_dir.mkdir(parents=True, exist_ok=True)
+        app.mount(
+            "/local-files",
+            StaticFiles(directory=settings.local_storage_dir),
+            name="local-files",
+        )
     return app
 
 

@@ -17,9 +17,13 @@ from app.services.routing_store import (
     RawOCR,
     RoutingFieldResult,
 )
-from app.services.type_b_rules import score_date, score_tooth_numbers
+from app.services.type_b_rules import (
+    TOOTH_NUMBER_KEYS,
+    score_date,
+    score_tooth_numbers,
+)
 
-_TOOTH_KEYS = ("tooth", "치아", "치식")
+_TOOTH_KEYS = TOOTH_NUMBER_KEYS
 _DATE_KEYS = ("date", "due", "날짜", "납기", "접수")
 _SHADE_KEYS = ("shade", "셰이드", "색상")
 

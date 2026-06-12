@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
+from app.services.type_b_rules import TOOTH_NUMBER_KEYS
+
 
 class FieldValidationError(Exception):
     """필드 값 검증 실패 — 422 로 매핑."""
@@ -159,7 +161,7 @@ def _validate_type_b_field(field_key: str, value: str, order) -> None:
     """Type B 필드별 검증 — field_key 패턴으로 분기."""
     key_lower = field_key.lower()
 
-    if "tooth" in key_lower or "number" in key_lower:
+    if any(k in key_lower for k in TOOTH_NUMBER_KEYS):
         validate_tooth_number(value)
 
     elif "due" in key_lower or "납기" in key_lower:
