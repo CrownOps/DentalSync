@@ -1,5 +1,7 @@
 # HITL 검토 수동 검증 시나리오
 
+> **문서 상태:** 현행 · 2026-06-11 · PR #15 기준
+
 > 대상: PR #15 (HITL 검토 API v1 + 프론트 연동)
 > 사전 조건: `docker compose -f docker-compose.dev.yml up -d` → 백엔드(`:8000`)·프론트(`:3000`) 기동, `uv run alembic upgrade head` 적용
 
