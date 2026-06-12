@@ -93,7 +93,7 @@ def apply_field_update(
     actor: str,
 ) -> FieldUpdateResult:
     from app.db.models import FieldAuditLog, Order, OrderField
-    from app.domain.enums import CorrectedBy, FieldStatus, FieldType
+    from app.domain.enums import CorrectedBy, FieldStatus, FieldType, OrderStatus
 
     order: Order | None = session.get(Order, order_id)
     if order is None:
@@ -111,9 +111,15 @@ def apply_field_update(
             message=f"필드를 찾을 수 없음: {field_key}",
         )
 
-    if field.status != FieldStatus.needs_review:
+    # 의뢰서 확정 전(needs_review)에는 이미 확정한 필드도 재수정 허용(오타 복구).
+    # 의뢰서가 확정/자동확정된 뒤에는 수정 불가 — 409.
+    if (
+        field.status != FieldStatus.needs_review
+        and order.status != OrderStatus.needs_review
+    ):
         raise FieldNotReviewableError(
-            f"수정 불가 상태: {field.field_key} (status={field.status.value})"
+            f"수정 불가 상태: {field.field_key} "
+            f"(field={field.status.value}, order={order.status.value})"
         )
 
     # 타입별 값 검증

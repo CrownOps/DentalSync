@@ -209,7 +209,10 @@ function FieldForm({ order, activeKey, onFieldFocus }: FieldFormProps) {
   return (
     <div className="flex flex-col gap-3">
       {localFields.map((f) => {
-        const isEditable = f.status === "needs_review";
+        // 의뢰서 확정 전에는 확정된 필드도 재수정 가능 (PII 는 마스킹 유지를 위해 needs_review 일 때만)
+        const isEditable =
+          f.status === "needs_review" ||
+          (order.status === "needs_review" && !f.pii);
         const isActive = f.field_key === activeKey;
         const currentVal = f.value ?? "";
         const fieldError = fieldErrors[f.field_key];
@@ -243,7 +246,7 @@ function FieldForm({ order, activeKey, onFieldFocus }: FieldFormProps) {
                     강제검토
                   </span>
                 )}
-                {!isEditable && (
+                {f.status !== "needs_review" && (
                   <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500">
                     확정됨
                   </span>
