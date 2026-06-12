@@ -8,6 +8,7 @@ venv/
 .env
 .env.*
 !.env.example
+!.env.local.example
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -41,3 +42,8 @@ Thumbs.db
 
 # ---- 마킹 감지 e2e 데모 산출물 ----
 .demo_marking/
+
+# ---- 로컬 개발 데이터 (DATABASE_URL=sqlite / STORAGE_BACKEND=local) ----
+backend/data/*.db
+backend/data/uploads/
+backend/data/e2e_test.jpg

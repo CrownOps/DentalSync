@@ -20,6 +20,7 @@ from app.core.config import Settings
 from app.db.base import Base
 from app.db.models import Lab, Order
 from app.domain.enums import OrderStatus
+from app.domain.errors import StorageError
 from app.infra.ocr.base import OCRField, OCRTransientError
 from app.infra.ocr.mock import MockOCREngine
 from app.main import app
@@ -131,3 +132,41 @@ def test_retry_ocr_order_not_found(harness: Harness) -> None:
     app.dependency_overrides[get_ocr_engine] = lambda: MockOCREngine()
     resp: httpx.Response = harness.client.post("/api/orders/999/retry-ocr")
     assert resp.status_code == 404
+
+
+class _StatusSpyEngine:
+    """extract 도중 별도 세션으로 주문 상태를 관찰 — 폴링 세션 시점 재현."""
+
+    def __init__(self, sessions: sessionmaker[Session]) -> None:
+        self._sessions = sessions
+        self.observed: OrderStatus | None = None
+
+    async def extract(self, image_bytes: bytes, template_id: str) -> list[OCRField]:
+        with self._sessions() as s:
+            order = s.get(Order, 1)
+            assert order is not None
+            self.observed = order.status
+        return [OCRField(field_key="custom_field", text="X", confidence=0.42)]
+
+
+def test_ocr_running_visible_to_polling_session(harness: Harness) -> None:
+    """OCR 진행 중 다른 세션(폴링)에서 ocr_running 이 보여야 한다 — flush 가 아닌 commit."""
+    spy = _StatusSpyEngine(harness.sessions)
+    app.dependency_overrides[get_ocr_engine] = lambda: spy
+    resp: httpx.Response = harness.client.post("/api/orders/1/retry-ocr")
+    assert resp.status_code == 200
+    assert spy.observed is OrderStatus.ocr_running
+
+
+class _FailingStorage(_FakeStorage):
+    def get_object(self, key: str) -> bytes:
+        raise StorageError("R2 unavailable")
+
+
+def test_storage_failure_lands_in_ocr_failed(harness: Harness) -> None:
+    """이미지 조회 실패 시 ocr_running 에 갇히지 않고 ocr_failed 로 착지(재시도 대상)."""
+    app.dependency_overrides[get_ocr_engine] = lambda: MockOCREngine()
+    app.dependency_overrides[get_storage] = lambda: _FailingStorage()
+    resp: httpx.Response = harness.client.post("/api/orders/1/retry-ocr")
+    assert resp.status_code == 502
+    assert _order_status(harness) is OrderStatus.ocr_failed

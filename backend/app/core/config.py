@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     image_cache_ttl_seconds: int = 60 * 60 * 24 * 7  # 이미지 해시 캐시 TTL 7일
 
+    # --- 백엔드 구현 선택 (로컬 개발: mock/local/memory 로 외부 의존 없이 실행) ---
+    ocr_provider: str = "clova"  # clova | mock
+    storage_backend: str = "r2"  # r2 | local
+    cache_backend: str = "redis"  # redis | memory
+    local_storage_dir: Path = BACKEND_DIR / "data" / "uploads"  # storage_backend=local 저장 경로
+    public_base_url: str = "http://localhost:8000"  # local 스토리지 URL 생성용 (API 외부 주소)
+
     # --- 이미지 업로드 검증 임계값 (외부화) ---
     max_image_bytes: int = 15 * 1024 * 1024  # 15MB
     min_image_width: int = 1000

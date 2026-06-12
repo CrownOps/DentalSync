@@ -13,6 +13,11 @@ PASS_FULL = 1.0
 PASS_PARTIAL = 0.5
 PASS_FAIL = 0.0
 
+# 치아번호(FDI) 필드 키 패턴 — 'tooth' 단독 매칭 금지.
+# tooth_notation/tooth_region/tooth_side/tooth_vitality 등 범주형 필드가
+# FDI 검증에 걸려 HITL 확정이 불가능해지는 오분류를 방지한다(layout v1.1.0).
+TOOTH_NUMBER_KEYS = ("tooth_number", "치아번호", "치식")
+
 # --------------------------------------------------------------------------- #
 # 치식 (FDI 11~48)
 # --------------------------------------------------------------------------- #

@@ -15,7 +15,7 @@ from app.core.config import Settings
 from app.core.scoring import get_scoring_config
 from app.db.models import Lab, Order
 from app.domain.enums import OrderStatus
-from app.domain.errors import OrderNotFoundError
+from app.domain.errors import OrderNotFoundError, StorageError
 from app.infra.ocr.base import OCREngine, OCRExtractionError, OCRField
 from app.infra.storage import StorageClient
 from app.services.routing import route_ocr_fields
@@ -41,10 +41,17 @@ async def run_ocr(
     if order is None:
         raise OrderNotFoundError(order_id)
 
+    # 커밋해야 폴링(타 세션)에서 ocr_running 이 보인다 — flush 는 현 세션 한정.
     order.status = OrderStatus.ocr_running
-    session.flush()
+    session.commit()
 
-    image = storage.get_object(order.image_url)  # StorageError 는 상위로 전파(미커밋→롤백)
+    try:
+        image = storage.get_object(order.image_url)
+    except StorageError:
+        # ocr_running 이 커밋된 뒤이므로, 실패를 ocr_failed 로 착지시켜 재시도 대상으로 만든다.
+        order.status = OrderStatus.ocr_failed
+        session.commit()
+        raise
 
     lab = session.get(Lab, order.lab_id)
     template_id = (lab.template_id if lab and lab.template_id else "") or settings.clova_template_id

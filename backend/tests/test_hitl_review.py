@@ -259,11 +259,29 @@ def test_confirm_idempotency_returns_409(
 # ── 수정 불가 상태 필드 → 409 ─────────────────────────────────────────────────
 
 
-def test_update_confirmed_field_returns_409(
+def test_update_confirmed_field_allowed_before_order_confirm(
     client: TestClient, session_factory: sessionmaker[Session]
 ) -> None:
+    """의뢰서 확정 전(needs_review)에는 확정한 필드도 재수정 가능(오타 복구)."""
     order = _make_order(
         session_factory,
+        fields=[{"key": "f1", "status": FieldStatus.confirmed, "score": 0.95}],
+    )
+    resp = client.patch(
+        f"/api/v1/review/{order.id}/fields/f1",
+        json={"value": "new"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["corrected_value"] == "new"
+
+
+def test_update_field_on_confirmed_order_returns_409(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    """의뢰서가 confirmed 로 확정된 뒤에는 필드 수정 불가."""
+    order = _make_order(
+        session_factory,
+        status=OrderStatus.confirmed,
         fields=[{"key": "f1", "status": FieldStatus.confirmed, "score": 0.95}],
     )
     resp = client.patch(

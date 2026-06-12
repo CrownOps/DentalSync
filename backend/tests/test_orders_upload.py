@@ -16,12 +16,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.deps import get_cache, get_db, get_settings_dep, get_storage
+from app.api.deps import (
+    get_cache,
+    get_db,
+    get_db_session_factory,
+    get_ocr_engine,
+    get_settings_dep,
+    get_storage,
+)
 from app.core.config import Settings
 from app.db.base import Base
 from app.db.models import Lab, Order
+from app.domain.enums import OrderStatus
 from app.domain.errors import StorageError
 from app.infra.cache import InMemoryCache
+from app.infra.ocr.mock import MockOCREngine
 from app.main import app
 from app.services.hashing import sha256_hex
 from app.services.order_intake import cache_key
@@ -86,9 +95,12 @@ def harness() -> Iterator[Harness]:
             s.close()
 
     app.dependency_overrides[get_db] = _db
+    app.dependency_overrides[get_db_session_factory] = lambda: session_local
     app.dependency_overrides[get_storage] = lambda: storage
     app.dependency_overrides[get_cache] = lambda: cache
     app.dependency_overrides[get_settings_dep] = lambda: settings
+    # 업로드 후 백그라운드 파이프라인은 Mock OCR 로 실행 (외부 의존 0)
+    app.dependency_overrides[get_ocr_engine] = lambda: MockOCREngine()
     try:
         yield Harness(TestClient(app), storage, cache, session_local)
     finally:
@@ -157,3 +169,25 @@ def test_r2_failure_rolls_back(harness: Harness) -> None:
 def test_lab_not_found(harness: Harness) -> None:
     resp = _post(harness.client, sharp_jpeg(), lab_id=999)
     assert resp.status_code == 404
+
+
+def test_upload_triggers_background_pipeline(harness: Harness) -> None:
+    """업로드 → (백그라운드) OCR→라우팅→스코어링 → 종료 상태 전이.
+
+    TestClient 는 BackgroundTasks 를 응답 후 동기 실행하므로
+    응답 시점엔 uploaded, 이후 DB 조회 시점엔 종료 상태여야 한다.
+    """
+    resp = _post(harness.client, sharp_jpeg())
+    assert resp.status_code == 201
+    order_id = resp.json()["order_id"]
+
+    with harness.sessions() as s:
+        order = s.get(Order, order_id)
+        assert order is not None
+        assert order.status in (OrderStatus.needs_review, OrderStatus.auto_confirmed)
+        assert len(order.fields) > 0  # Mock OCR 필드가 라우팅 저장됨
+
+    # 프론트 폴링 엔드포인트도 동일 상태를 반환
+    status_resp = harness.client.get(f"/api/v1/orders/{order_id}/status")
+    assert status_resp.status_code == 200
+    assert status_resp.json()["status"] in ("needs_review", "auto_confirmed")
