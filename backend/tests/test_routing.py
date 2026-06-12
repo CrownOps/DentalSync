@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+
+import pytest
+
 from app.domain.enums import FieldType
 from app.domain.scoring import ScoringConfig, ScoringThresholds, ScoringWeights
 from app.infra.ocr.base import OCRField
+from app.infra.ocr.mock import load_layout_fields
 from app.services.routing import route_ocr_fields
 
 _CFG = ScoringConfig(
@@ -46,10 +51,71 @@ def test_shade_field_classified() -> None:
     assert results[0].field_type == FieldType.SHADE
 
 
-def test_free_text_routes_to_type_c_ocr_conf_only() -> None:
-    results = route_ocr_fields([_ocr("notes", "크라운 제작 요청", conf=0.8)], _CFG)
+def test_unmapped_key_falls_back_to_type_c_with_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """레이아웃 미등록 키 — 스킵 금지, 경고 로그 + 휴리스틱 폴백."""
+    with caplog.at_level(logging.WARNING, logger="dentalsync.routing"):
+        results = route_ocr_fields([_ocr("notes", "크라운 제작 요청", conf=0.8)], _CFG)
     r = results[0]
     assert r.field_type == FieldType.C
     assert r.confidence.rule_pass is None
     # ocr_conf 단독 재정규화 → score == ocr_conf
     assert abs(r.confidence.score - 0.8) < 1e-9
+    assert any("field_unmapped" in rec.message for rec in caplog.records)
+
+
+def test_select_field_routes_to_type_a_with_option_match() -> None:
+    results = route_ocr_fields([_ocr("tooth_vitality", "vital")], _CFG)
+    r = results[0]
+    assert r.field_type == FieldType.A
+    assert r.confidence.rule_pass == 1.0
+    assert r.corrected_value == "vital"
+
+
+def test_boolean_field_routes_to_type_a() -> None:
+    results = route_ocr_fields([_ocr("is_remake", "false")], _CFG)
+    r = results[0]
+    assert r.field_type == FieldType.A
+    assert r.confidence.rule_pass == 1.0
+    assert r.corrected_value == "false"
+
+
+def test_special_flags_mapped_as_type_a_multi_select() -> None:
+    """special_flags — 다중 선택 매핑 (스킵 회귀 방지: 반드시 결과에 포함)."""
+    results = route_ocr_fields([_ocr("special_flags", '["scrp"]')], _CFG)
+    assert len(results) == 1
+    r = results[0]
+    assert r.field_type == FieldType.A
+    assert r.confidence.rule_pass == 1.0
+    assert r.corrected_value == '["scrp"]'
+
+
+def test_special_flags_unknown_token_is_partial_pass() -> None:
+    results = route_ocr_fields([_ocr("special_flags", "scrp 알수없음")], _CFG)
+    r = results[0]
+    assert r.confidence.rule_pass == 0.5
+    assert r.corrected_value == '["scrp"]'
+
+
+def test_plain_ocr_text_routes_to_type_b_without_llm() -> None:
+    """source=ocr 단순 텍스트(치과명 등) — CLOVA 확정, LLM 대상(C) 제외."""
+    results = route_ocr_fields([_ocr("clinic_name", "서울미소치과", conf=0.9)], _CFG)
+    r = results[0]
+    assert r.field_type == FieldType.B
+    assert r.confidence.rule_pass is None
+    assert abs(r.confidence.score - 0.9) < 1e-9
+
+
+def test_llm_allowed_free_text_routes_to_type_c() -> None:
+    results = route_ocr_fields([_ocr("contact_instruction", "컨택 신경써주세요")], _CFG)
+    assert results[0].field_type == FieldType.C
+
+
+def test_llm_call_ratio_within_design_target() -> None:
+    """레이아웃 전 필드 라우팅 시 Type C(LLM 대상) 비중 ≤ 설계치 25%."""
+    fields = list(load_layout_fields())
+    results = route_ocr_fields(fields, _CFG)
+    type_c = [r for r in results if r.field_type == FieldType.C]
+    assert len(results) == len(fields)  # 어떤 필드도 스킵하지 않는다
+    assert len(type_c) / len(results) <= 0.25

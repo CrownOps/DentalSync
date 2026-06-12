@@ -184,8 +184,8 @@ export function getFieldLabel(fieldKey: string): string {
 
 // 라우팅 타입 → 한국어 설명
 export const ROUTING_TYPE_LABELS: Readonly<Record<string, string>> = {
-  A: "Type A — 체크박스/마킹 (OpenCV 룰)",
-  B: "Type B — 날짜/치아번호 (정규식)",
+  A: "Type A — 체크박스/선택지 (옵션 매칭 룰)",
+  B: "Type B — 날짜/치식/정형 텍스트 (정규식·CLOVA 확정)",
   C: "Type C — 자유텍스트 (LLM)",
   SHADE: "쉐이드 감지 (PIL 색상)",
 };
