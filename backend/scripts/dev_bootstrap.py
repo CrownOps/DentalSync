@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from app.core.config import get_settings
 from app.db.base import Base
-from app.db.models import Lab  # noqa: F401 — 메타데이터 등록
+from app.db.models import Lab
 from app.db.session import get_engine, get_session_factory
 
 
