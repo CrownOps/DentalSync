@@ -5,9 +5,10 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
-from typing import Any
 
 from app.core.config import get_settings
 
