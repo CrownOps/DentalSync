@@ -27,6 +27,9 @@ _DUMMY_BBOX: dict[str, Any] = {
 def _example_text(example: Any) -> str:
     if isinstance(example, str):
         return example
+    # 실제 OCR raw 텍스트에 가깝게: 배열 예시는 쉼표 구분 평문으로 평탄화
+    if isinstance(example, list):
+        return ", ".join(str(item) for item in example)
     return json.dumps(example, ensure_ascii=False)
 
 

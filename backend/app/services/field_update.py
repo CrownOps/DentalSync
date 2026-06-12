@@ -14,7 +14,11 @@ if TYPE_CHECKING:
 
     from app.db.models import Order
 
-from app.services.type_b_rules import TOOTH_NUMBER_KEYS
+from app.services.type_b_rules import (
+    PASS_FULL,
+    TOOTH_NUMBER_KEYS,
+    score_tooth_numbers,
+)
 
 
 class FieldValidationError(Exception):
@@ -30,11 +34,6 @@ class FieldNotReviewableError(Exception):
     """수정 불가 상태 — 409 로 매핑."""
 
 
-# FDI 유효 치아 번호: 11~18, 21~28, 31~38, 41~48
-_VALID_FDI = frozenset(
-    f"{q}{t}" for q in range(1, 5) for t in range(1, 9)
-)
-
 # VITA 클래식 코드 + VITA 3D-Master 코드
 _VITA_CLASSIC = {"A1", "A2", "A3", "A3.5", "A4", "B1", "B2", "B3", "B4",
                  "C1", "C2", "C3", "C4", "D2", "D3", "D4"}
@@ -44,14 +43,20 @@ _VITA_CODES = _VITA_CLASSIC | _VITA_3D
 
 
 def validate_tooth_number(value: str) -> None:
-    """FDI 치아번호 검증 — 공백 구분 복수 치아 허용."""
-    tokens = value.strip().split()
-    for token in tokens:
-        if token not in _VALID_FDI:
-            raise FieldValidationError(
-                rule="fdi_range",
-                message=f"유효하지 않은 FDI 치아번호: {token!r} (11~48 범위)",
-            )
+    """FDI 치아번호 검증 — 라우팅 룰(score_tooth_numbers)과 동일 파서 사용.
+
+    쉼표/공백/세미콜론 구분 복수 치아와 브릿지 범위("36-37") 표기를 허용한다.
+    사람이 입력하는 확정값이므로 모호한 범위(사분면 교차/역순)는 거부한다.
+    """
+    result = score_tooth_numbers(value)
+    if result.rule_pass != PASS_FULL:
+        raise FieldValidationError(
+            rule="fdi_range",
+            message=(
+                f"유효하지 않은 치아번호 표기: {value!r} "
+                "(FDI 11~48, 예: '36, 37' 또는 '36-37')"
+            ),
+        )
 
 
 def validate_date_value(value: str) -> date:

@@ -87,6 +87,17 @@ _MD_PATTERNS = (
     re.compile(r"^(\d{1,2})월\s*(\d{1,2})일$"),  # 6월 15일
 )
 
+# 납기(datetime) 시간 접미 — "2026-06-04T09:00:00", "6/4 09:00", "6월 4일 오전 9시" 등.
+# 날짜부만 정규화 대상으로 삼고 시간부는 제거한다.
+_TIME_SUFFIX_RE = re.compile(
+    r"(?:[T\s]+(?:오전|오후|AM|PM)?\s*\d{1,2}(?::\d{2}(?::\d{2})?|시(?:\s*\d{1,2}분?)?))\s*$",
+    re.IGNORECASE,
+)
+
+
+def _strip_time_suffix(text: str) -> str:
+    return _TIME_SUFFIX_RE.sub("", text).strip()
+
 
 def _build_iso(year: int, month: int, day: int) -> str | None:
     if year < 100:
@@ -99,7 +110,7 @@ def _build_iso(year: int, month: int, day: int) -> str | None:
 
 def normalize_date(raw: str) -> str | None:
     """연/월/일이 모두 있는 표기를 ISO(YYYY-MM-DD)로. 실패/연도없음 → None."""
-    text = raw.strip()
+    text = _strip_time_suffix(raw.strip())
     for pat in _FULL_PATTERNS:
         m = pat.match(text)
         if m:
@@ -108,7 +119,7 @@ def normalize_date(raw: str) -> str | None:
 
 
 def score_date(raw: str) -> DateRuleResult:
-    text = raw.strip()
+    text = _strip_time_suffix(raw.strip())
     for pat in _FULL_PATTERNS:
         m = pat.match(text)
         if m:

@@ -94,6 +94,23 @@ def test_date_invalid(raw: str) -> None:
     assert r.iso is None
 
 
+@pytest.mark.parametrize(
+    ("raw", "iso"),
+    [
+        ("2026-06-04T09:00:00", "2026-06-04"),  # ISO datetime (layout due_date 예시)
+        ("2026-06-04 09:00", "2026-06-04"),
+        ("2026.6.4 9:30", "2026-06-04"),
+        ("2026년 6월 4일 오전 9시", "2026-06-04"),
+        ("2026년 6월 4일 9시 30분", "2026-06-04"),
+    ],
+)
+def test_date_with_time_suffix_uses_date_part(raw: str, iso: str) -> None:
+    """납기(datetime 타입)는 시간 접미를 무시하고 날짜부만 정규화한다."""
+    r = score_date(raw)
+    assert r.rule_pass == 1.0
+    assert r.iso == iso
+
+
 def test_normalize_date_helper() -> None:
     assert normalize_date("26.6.15") == "2026-06-15"
     assert normalize_date("6/15") is None  # 연도 없음

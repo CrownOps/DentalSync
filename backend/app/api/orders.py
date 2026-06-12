@@ -260,6 +260,15 @@ def get_order_status(
     )
 
 
+# 재시도 금지 상태 — 라우팅 결과(order_fields)가 이미 존재해 재실행 시
+# 사람이 수정/확정한 값까지 삭제·재생성되는 상태들 (REQ: OCR 실패 건 전용 재시도)
+_RETRY_BLOCKED_STATUSES = (
+    OrderStatus.needs_review,
+    OrderStatus.auto_confirmed,
+    OrderStatus.confirmed,
+)
+
+
 @router.post("/orders/{order_id}/retry-ocr", response_model=OCRRunResponse)
 async def retry_ocr(
     order_id: int,
@@ -268,6 +277,15 @@ async def retry_ocr(
     storage: Annotated[StorageClient, Depends(get_storage)],
     settings: Annotated[Settings, Depends(get_settings_dep)],
 ) -> OCRRunResponse:
+    order: Order | None = session.get(Order, order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail=f"주문을 찾을 수 없음: {order_id}")
+    if order.status in _RETRY_BLOCKED_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"재시도 불가 상태: {order.status.value} (OCR 실패 건만 재시도 가능)",
+        )
+
     try:
         result = await run_ocr(
             session=session,

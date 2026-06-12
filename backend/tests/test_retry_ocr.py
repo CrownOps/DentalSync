@@ -134,6 +134,38 @@ def test_retry_ocr_order_not_found(harness: Harness) -> None:
     assert resp.status_code == 404
 
 
+@pytest.mark.parametrize(
+    "blocked_status",
+    [OrderStatus.needs_review, OrderStatus.auto_confirmed, OrderStatus.confirmed],
+)
+def test_retry_ocr_blocked_after_routing_returns_409(
+    harness: Harness, blocked_status: OrderStatus
+) -> None:
+    """라우팅 결과/확정 데이터가 있는 상태에서 재시도 시 409 — 인적 수정값 파괴 방지."""
+    with harness.sessions() as s:
+        order = s.get(Order, 1)
+        assert order is not None
+        order.status = blocked_status
+        s.commit()
+
+    app.dependency_overrides[get_ocr_engine] = lambda: MockOCREngine()
+    resp: httpx.Response = harness.client.post("/api/orders/1/retry-ocr")
+    assert resp.status_code == 409
+    assert _order_status(harness) is blocked_status  # 상태 불변
+
+
+def test_retry_ocr_allowed_from_ocr_failed(harness: Harness) -> None:
+    with harness.sessions() as s:
+        order = s.get(Order, 1)
+        assert order is not None
+        order.status = OrderStatus.ocr_failed
+        s.commit()
+
+    app.dependency_overrides[get_ocr_engine] = lambda: MockOCREngine()
+    resp: httpx.Response = harness.client.post("/api/orders/1/retry-ocr")
+    assert resp.status_code == 200, resp.text
+
+
 class _StatusSpyEngine:
     """extract 도중 별도 세션으로 주문 상태를 관찰 — 폴링 세션 시점 재현."""
 

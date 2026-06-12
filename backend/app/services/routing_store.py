@@ -101,9 +101,11 @@ def store_routing_result(
             if field_status == FieldStatus.needs_review:
                 needs_review_count += 1
 
+            # needs_review 플래그는 라우팅 입력값이 아니라 스코어링으로 확정된
+            # 최종 상태를 기록한다 (DB 4종 저장의 '플래그 = HITL 여부' 계약).
             flags_dict: dict[str, Any] = {
                 "field_type": fr.flags.field_type or fr.field_type.value,
-                "needs_review": fr.flags.needs_review,
+                "needs_review": field_status == FieldStatus.needs_review,
                 "forced_hitl": fr.flags.forced_hitl,
                 "model_escalated": fr.flags.model_escalated,
                 "corrected_by_human": False,

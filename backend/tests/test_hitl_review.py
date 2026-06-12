@@ -201,6 +201,46 @@ def test_fdi_out_of_range_rejected(
     assert body["detail"]["error"]["code"] == "fdi_range"
 
 
+def test_fdi_comma_and_range_notation_accepted(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    """라우팅 룰과 동일하게 쉼표 구분·브릿지 범위 표기를 허용한다."""
+    order = _make_order(
+        session_factory,
+        fields=[
+            {"key": "tooth_number", "type": FieldType.B, "score": 0.5},
+            {"key": "tooth_number_2", "type": FieldType.B, "score": 0.5},
+        ],
+    )
+    resp = client.patch(
+        f"/api/v1/review/{order.id}/fields/tooth_number",
+        json={"value": "36, 37"},
+    )
+    assert resp.status_code == 200, resp.text
+
+    resp = client.patch(
+        f"/api/v1/review/{order.id}/fields/tooth_number_2",
+        json={"value": "36-37"},
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def test_fdi_ambiguous_range_rejected(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    """사분면 교차 범위("18-21")는 해석이 모호 — 사람 확정값으로 거부."""
+    order = _make_order(
+        session_factory,
+        fields=[{"key": "tooth_number", "type": FieldType.B, "score": 0.5}],
+    )
+    resp = client.patch(
+        f"/api/v1/review/{order.id}/fields/tooth_number",
+        json={"value": "18-21"},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"]["code"] == "fdi_range"
+
+
 # ── training_labels 적재 + 익명화 ─────────────────────────────────────────────
 
 
