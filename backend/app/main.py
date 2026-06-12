@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -14,6 +16,8 @@ from app.core.config import get_settings
 from app.core.scoring import get_scoring_config
 from app.domain.errors import ImageValidationError
 from app.schemas.orders import ImageRejectResponse
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -39,7 +43,13 @@ def create_app() -> FastAPI:
         )
         return JSONResponse(status_code=422, content=body.model_dump())
 
+    async def on_unhandled_error(_request: Request, exc: Exception) -> JSONResponse:
+        # CORS 미들웨어가 헤더를 붙일 수 있도록 예외를 JSONResponse로 변환
+        logger.exception("Unhandled server error: %s", exc)
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
     app.add_exception_handler(ImageValidationError, on_image_validation_error)  # type: ignore[arg-type]
+    app.add_exception_handler(Exception, on_unhandled_error)  # type: ignore[arg-type]
 
     app.include_router(health_router)
     app.include_router(orders_router)
