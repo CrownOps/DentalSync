@@ -145,6 +145,35 @@ def test_forced_hitl_overrides_score(session_factory: sessionmaker[Session]) -> 
     assert result.status == OrderStatus.needs_review
 
 
+def test_flags_needs_review_synced_with_field_status(
+    session_factory: sessionmaker[Session],
+) -> None:
+    """flags.needs_review 는 라우팅 입력값이 아니라 스코어링 확정 상태를 따른다."""
+    from app.db.models import OrderField
+    from app.domain.enums import FieldStatus
+
+    order_id = _make_order(session_factory)
+    with session_factory() as s:
+        store_routing_result(
+            session=s,
+            order_id=order_id,
+            field_results=[
+                _make_field("field_a", 0.95),  # confirmed
+                _make_field("field_b", 0.85),  # needs_review (입력 flags 는 기본 False)
+            ],
+            scoring_cfg=_SCORING_CFG,
+        )
+
+    with session_factory() as s:
+        fields = {f.field_key: f for f in s.query(OrderField).filter_by(order_id=order_id)}
+        assert fields["field_a"].status == FieldStatus.confirmed
+        flags_a = fields["field_a"].flags or {}
+        assert flags_a["needs_review"] is False
+        assert fields["field_b"].status == FieldStatus.needs_review
+        flags_b = fields["field_b"].flags or {}
+        assert flags_b["needs_review"] is True
+
+
 def test_exception_rolls_back_order_status_to_routing(
     session_factory: sessionmaker[Session],
 ) -> None:
