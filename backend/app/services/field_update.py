@@ -7,6 +7,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+    from app.db.models import Order
 
 
 class FieldValidationError(Exception):
@@ -84,7 +90,7 @@ class FieldUpdateResult:
 
 
 def apply_field_update(
-    session,  # Session — import 순환 방지를 위해 타입 힌트 미사용
+    session: Session,
     order_id: int,
     field_key: str,
     new_value: str,
@@ -155,7 +161,7 @@ def apply_field_update(
     )
 
 
-def _validate_type_b_field(field_key: str, value: str, order) -> None:
+def _validate_type_b_field(field_key: str, value: str, order: Order) -> None:
     """Type B 필드별 검증 — field_key 패턴으로 분기."""
     key_lower = field_key.lower()
 
