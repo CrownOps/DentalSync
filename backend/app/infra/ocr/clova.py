@@ -28,6 +28,25 @@ from app.infra.ocr.base import (
 )
 
 
+# CLOVA images[].format 은 실제 파일 포맷과 일치해야 함(불일치 시 HTTP 400).
+# 클라이언트 content-type 을 믿지 않고 매직 바이트로 판별한다.
+_FORMAT_MAGIC: tuple[tuple[bytes, str], ...] = (
+    (b"\xff\xd8\xff", "jpg"),
+    (b"\x89PNG\r\n\x1a\n", "png"),
+    (b"%PDF", "pdf"),
+    (b"II*\x00", "tiff"),
+    (b"MM\x00*", "tiff"),
+)
+
+
+def detect_clova_format(image_bytes: bytes) -> str:
+    """매직 바이트 → CLOVA format 문자열. 미상이면 jpg 로 폴백."""
+    for magic, fmt in _FORMAT_MAGIC:
+        if image_bytes.startswith(magic):
+            return fmt
+    return "jpg"
+
+
 def parse_clova_response(payload: dict[str, Any]) -> list[OCRField]:
     """CLOVA Template 응답 → OCRField 목록. 스키마 위반 시 OCRParseError."""
     try:
@@ -98,15 +117,18 @@ class CLOVAOCREngine(OCREngine):
         raise OCRTransientError("재시도 소진")  # pragma: no cover - 도달 불가(reraise)
 
     async def _single_call(self, image_bytes: bytes, template_id: str) -> dict[str, Any]:
+        image_format = detect_clova_format(image_bytes)
         message = {
             "version": "V2",
             "requestId": str(uuid.uuid4()),
             "timestamp": 0,
-            "images": [{"format": "jpg", "name": "requisition"}],
+            "images": [{"format": image_format, "name": "requisition"}],
             "templateIds": [template_id],
         }
         headers = {"X-OCR-SECRET": self._secret}
-        files = {"file": ("requisition.jpg", image_bytes, "application/octet-stream")}
+        files = {
+            "file": (f"requisition.{image_format}", image_bytes, "application/octet-stream")
+        }
         data = {"message": json.dumps(message)}
 
         try:

@@ -9,8 +9,12 @@ import pytest
 from tenacity.wait import wait_none
 
 from app.infra.ocr.base import OCRExtractionError, OCRParseError
-from app.infra.ocr.clova import CLOVAOCREngine, parse_clova_response
+from app.infra.ocr.clova import CLOVAOCREngine, detect_clova_format, parse_clova_response
 from app.infra.ocr.mock import MockOCREngine
+
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+_JPEG_MAGIC = b"\xff\xd8\xff"
+_PDF_MAGIC = b"%PDF-1.4"
 
 SAMPLE_CLOVA: dict[str, Any] = {
     "version": "V2",
@@ -115,6 +119,35 @@ async def test_clova_success_calls_once() -> None:
     fields = await _engine(handler).extract(b"img", "tmpl")
     assert calls["n"] == 1  # 의뢰서당 정확히 1회
     assert {f.field_key for f in fields} == {"shade", "tooth_numbers"}
+
+
+# --- CLOVA format 판별(매직 바이트) ---------------------------------------
+@pytest.mark.parametrize(
+    ("data", "expected"),
+    [
+        (_JPEG_MAGIC + b"rest", "jpg"),
+        (_PNG_MAGIC + b"rest", "png"),
+        (_PDF_MAGIC + b"rest", "pdf"),
+        (b"II*\x00rest", "tiff"),
+        (b"unknown-bytes", "jpg"),  # 미상은 jpg 폴백
+    ],
+)
+def test_detect_clova_format(data: bytes, expected: str) -> None:
+    assert detect_clova_format(data) == expected
+
+
+async def test_clova_request_declares_actual_format() -> None:
+    """PNG 업로드는 message.format 을 png 로 선언해야 함(format 불일치 400 방지)."""
+    seen: dict[str, str] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        # 멀티파트 본문에 JSON message 가 텍스트로 포함됨
+        seen["body"] = req.content.decode("latin-1")
+        return httpx.Response(200, json=SAMPLE_CLOVA)
+
+    await _engine(handler).extract(_PNG_MAGIC + b"img", "tmpl")
+    assert '"format": "png"' in seen["body"]
+    assert "requisition.png" in seen["body"]
 
 
 async def test_clova_4xx_not_retried() -> None:
