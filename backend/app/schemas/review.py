@@ -99,6 +99,8 @@ class OrderStatusResponse(BaseModel):
     order_id: int
     status: str
     updated_at: str | None
+    # status=ocr_failed 일 때 실패 사유 — 프론트 재시도 UI 가 원인을 표시한다.
+    error_detail: str | None = None
 
 
 # ── 정확도 집계 ───────────────────────────────────────────────────────────────

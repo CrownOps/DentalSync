@@ -103,6 +103,13 @@ def _order_status(harness: Harness) -> OrderStatus:
         return order.status
 
 
+def _order_error_detail(harness: Harness) -> str | None:
+    with harness.sessions() as s:
+        order = s.get(Order, 1)
+        assert order is not None
+        return order.error_detail
+
+
 def test_retry_ocr_success_with_mock_engine(harness: Harness) -> None:
     app.dependency_overrides[get_ocr_engine] = lambda: MockOCREngine()
     resp: httpx.Response = harness.client.post("/api/orders/1/retry-ocr")
@@ -202,3 +209,50 @@ def test_storage_failure_lands_in_ocr_failed(harness: Harness) -> None:
     resp: httpx.Response = harness.client.post("/api/orders/1/retry-ocr")
     assert resp.status_code == 502
     assert _order_status(harness) is OrderStatus.ocr_failed
+
+
+def test_error_detail_set_on_ocr_failure(harness: Harness) -> None:
+    """OCR 실패 사유가 orders.error_detail 에 보존된다 — 사후 원인 추적."""
+    app.dependency_overrides[get_ocr_engine] = lambda: _FailingEngine()
+    resp: httpx.Response = harness.client.post("/api/orders/1/retry-ocr")
+    assert resp.status_code == 502
+    detail = _order_error_detail(harness)
+    assert detail is not None and "always fails" in detail
+
+
+def test_error_detail_set_on_storage_failure(harness: Harness) -> None:
+    """스토리지 실패 사유도 error_detail 에 보존된다(storage: 접두)."""
+    app.dependency_overrides[get_ocr_engine] = lambda: MockOCREngine()
+    app.dependency_overrides[get_storage] = lambda: _FailingStorage()
+    resp: httpx.Response = harness.client.post("/api/orders/1/retry-ocr")
+    assert resp.status_code == 502
+    detail = _order_error_detail(harness)
+    assert detail is not None and detail.startswith("storage:")
+    assert "R2 unavailable" in detail
+
+
+def test_error_detail_cleared_on_success(harness: Harness) -> None:
+    """직전 실패 사유가 남아 있어도 재시도 성공 시 error_detail 이 초기화된다."""
+    with harness.sessions() as s:
+        order = s.get(Order, 1)
+        assert order is not None
+        order.status = OrderStatus.ocr_failed
+        order.error_detail = "이전 실패 사유"
+        s.commit()
+
+    app.dependency_overrides[get_ocr_engine] = lambda: MockOCREngine()
+    resp: httpx.Response = harness.client.post("/api/orders/1/retry-ocr")
+    assert resp.status_code == 200, resp.text
+    assert _order_error_detail(harness) is None
+
+
+def test_status_endpoint_exposes_error_detail(harness: Harness) -> None:
+    """폴링 엔드포인트가 error_detail 을 노출 — 프론트 재시도 UI 가 사유 표시 가능."""
+    app.dependency_overrides[get_ocr_engine] = lambda: _FailingEngine()
+    harness.client.post("/api/orders/1/retry-ocr")
+
+    resp: httpx.Response = harness.client.get("/api/v1/orders/1/status")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["status"] == "ocr_failed"
+    assert body["error_detail"] is not None and "always fails" in body["error_detail"]

@@ -85,7 +85,7 @@ async def _run_ocr_pipeline(
         logger.warning(
             "백그라운드 OCR 실패(order_id=%s) — 수동 재시도 대상: %s", order_id, exc
         )
-    except Exception:
+    except Exception as exc:
         logger.exception("백그라운드 파이프라인 오류(order_id=%s)", order_id)
         session.rollback()
         order = session.get(Order, order_id)
@@ -95,6 +95,7 @@ async def _run_ocr_pipeline(
             OrderStatus.confirmed,
         ):
             order.status = OrderStatus.ocr_failed
+            order.error_detail = f"pipeline: {exc}"
             session.commit()
     finally:
         session.close()
@@ -302,6 +303,7 @@ def get_order_status(
         order_id=order.id,
         status=order.status.value,
         updated_at=order.updated_at.isoformat() if order.updated_at else None,
+        error_detail=order.error_detail,
     )
 
 

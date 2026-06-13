@@ -47,9 +47,10 @@ async def run_ocr(
 
     try:
         image = storage.get_object(order.image_url)
-    except StorageError:
+    except StorageError as exc:
         # ocr_running 이 커밋된 뒤이므로, 실패를 ocr_failed 로 착지시켜 재시도 대상으로 만든다.
         order.status = OrderStatus.ocr_failed
+        order.error_detail = f"storage: {exc}"
         session.commit()
         raise
 
@@ -58,12 +59,14 @@ async def run_ocr(
 
     try:
         fields = await engine.extract(image, template_id)
-    except OCRExtractionError:
+    except OCRExtractionError as exc:
         order.status = OrderStatus.ocr_failed
+        order.error_detail = str(exc)
         session.commit()
         raise
 
     order.status = OrderStatus.routing
+    order.error_detail = None  # 성공 — 직전 실패 사유(있다면) 제거
     session.commit()
 
     # 라우팅 결과 저장 — 상태를 needs_review | auto_confirmed 로 전이.
