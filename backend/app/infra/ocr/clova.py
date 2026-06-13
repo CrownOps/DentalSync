@@ -61,7 +61,8 @@ def _error_detail(resp: httpx.Response, *, limit: int = 500) -> str:
         return f"body={text[:limit]}" if text else "(빈 본문)"
     if isinstance(body, dict):
         # CLOVA 오류 스키마: {"code": ..., "message": ...} 또는 {"error": {...}}
-        err = body.get("error") if isinstance(body.get("error"), dict) else body
+        nested = body.get("error")
+        err = nested if isinstance(nested, dict) else body
         code = err.get("code") or err.get("errorCode")
         message = err.get("message") or err.get("errorMessage")
         if code or message:
