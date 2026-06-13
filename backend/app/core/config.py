@@ -36,6 +36,9 @@ class Settings(BaseSettings):
 
     # --- 백엔드 구현 선택 (로컬 개발: mock/local/memory 로 외부 의존 없이 실행) ---
     ocr_provider: str = "clova"  # clova | mock
+    # OCR 경로 분기: template(콘솔 등록 양식 전용) | general(자유양식 전체텍스트 + LLM 구조화)
+    ocr_mode: str = "template"  # template | general
+    llm_provider: str = "openai"  # openai | mock
     storage_backend: str = "r2"  # r2 | local
     cache_backend: str = "redis"  # redis | memory
     local_storage_dir: Path = BACKEND_DIR / "data" / "uploads"  # storage_backend=local 저장 경로
@@ -51,8 +54,9 @@ class Settings(BaseSettings):
     # --- 외부 API: Naver CLOVA OCR (Template Basic) ---
     clova_api_key: str = ""
     clova_template_id: str = ""
-    clova_ocr_invoke_url: str = ""  # APIGW invoke URL
-    clova_ocr_secret: str = ""  # X-OCR-SECRET
+    clova_ocr_invoke_url: str = ""  # APIGW invoke URL (Template OCR)
+    clova_general_invoke_url: str = ""  # APIGW invoke URL (General OCR, 양식 무관)
+    clova_ocr_secret: str = ""  # X-OCR-SECRET (Template/General 공용)
 
     # --- 외부 API: OpenAI — Type C 텍스트 구조화 전용(이미지 입력 금지) ---
     # 모델명 하드코딩 금지: 코드가 아닌 이 설정으로만 모델을 지정한다.

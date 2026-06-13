@@ -40,6 +40,7 @@ class FieldFlags:
     forced_hitl: bool = False
     model_escalated: bool = False
     inferred_from_note: bool = False
+    structured_by_llm: bool = False
     field_type: str = ""
 
 
@@ -110,6 +111,7 @@ def store_routing_result(
                 "forced_hitl": fr.flags.forced_hitl,
                 "model_escalated": fr.flags.model_escalated,
                 "inferred_from_note": fr.flags.inferred_from_note,
+                "structured_by_llm": fr.flags.structured_by_llm,
                 "corrected_by_human": False,
             }
 

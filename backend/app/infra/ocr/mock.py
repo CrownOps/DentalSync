@@ -15,6 +15,10 @@ from typing import Any
 from app.infra.ocr.base import OCRField
 
 _LAYOUT_PATH = Path(__file__).with_name("layout_v1_1_0.json")
+
+# 로컬 QA 전용: note 백필 시연을 위해 mock 응답에서 제외할 전용 칸.
+# 의사가 이 값들을 note(ocr_raw_text)에만 적은 상황을 재현 → 라우팅이 note 에서 역추출한다.
+_NOTE_ONLY_OMIT_KEYS = frozenset({"shade", "tooth_numbers", "material"})
 _DUMMY_BBOX: dict[str, Any] = {
     "vertices": [
         {"x": 10, "y": 10},
@@ -69,10 +73,17 @@ class MockOCREngine:
         )
 
     async def extract(self, image_bytes: bytes, template_id: str) -> list[OCRField]:
+        fields = self._fields
+
+        # 로컬 QA 전용: MOCK_OCR_NOTE_ONLY 로 쉐이드/치식/재료 전용 칸을 제외해
+        # note 백필 경로를 재현한다(자동추출 시연용). note(ocr_raw_text)는 유지.
+        if os.getenv("MOCK_OCR_NOTE_ONLY"):
+            fields = tuple(f for f in fields if f.field_key not in _NOTE_ONLY_OMIT_KEYS)
+
         # 로컬 QA 전용: MOCK_OCR_CONFIDENCE 로 OCR 신뢰도를 낮춰 저품질 스캔을
         # 재현한다(needs_review 분기 시연용). 미설정 시 layout 기본값(0.95) 유지.
         override = os.getenv("MOCK_OCR_CONFIDENCE")
         if override:
             conf = float(override)
-            return [f.model_copy(update={"confidence": conf}) for f in self._fields]
-        return [f.model_copy() for f in self._fields]
+            return [f.model_copy(update={"confidence": conf}) for f in fields]
+        return [f.model_copy() for f in fields]

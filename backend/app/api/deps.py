@@ -17,10 +17,13 @@ from app.core.config import Settings, get_settings
 from app.db.session import get_session_factory
 from app.infra.cache import CacheClient, InMemoryCache, RedisCache
 from app.infra.llm.base import LLMStructurer
+from app.infra.llm.mock_structurer import MockLLMStructurer
 from app.infra.llm.openai_structurer import OpenAIStructurer
 from app.infra.ocr.base import OCREngine
 from app.infra.ocr.clova import CLOVAOCREngine
+from app.infra.ocr.clova_general import CLOVAGeneralOCREngine
 from app.infra.ocr.mock import MockOCREngine
+from app.infra.ocr.mock_general import MockGeneralOCREngine
 from app.infra.storage import LocalDirStorage, R2Storage, StorageClient
 
 
@@ -66,13 +69,19 @@ def get_cache(settings: Settings = Depends(get_settings_dep)) -> CacheClient:  #
 
 def get_ocr_engine(settings: Settings = Depends(get_settings_dep)) -> OCREngine:  # noqa: B008
     # 구체 엔진 선택은 API(조립) 레이어에서만. 서비스는 OCREngine 인터페이스에만 의존.
+    # (provider, mode) 4조합: mock|clova × template|general.
+    general = settings.ocr_mode == "general"
     if settings.ocr_provider == "mock":
-        return MockOCREngine()
+        return MockGeneralOCREngine() if general else MockOCREngine()
+    if general:
+        return CLOVAGeneralOCREngine.from_settings(settings)
     return CLOVAOCREngine.from_settings(settings)
 
 
 def get_llm_structurer(settings: Settings = Depends(get_settings_dep)) -> LLMStructurer:  # noqa: B008
     # 서비스는 LLMStructurer 인터페이스에만 의존 — 벤더 교체 시 이 함수만 변경.
+    if settings.llm_provider == "mock":
+        return MockLLMStructurer()
     return OpenAIStructurer.from_settings(settings)
 
 

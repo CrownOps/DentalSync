@@ -16,10 +16,13 @@ from app.core.scoring import get_scoring_config
 from app.db.models import Lab, Order
 from app.domain.enums import OrderStatus
 from app.domain.errors import OrderNotFoundError, StorageError
+from app.domain.scoring import ScoringConfig
+from app.infra.llm.base import LLMStructurer
 from app.infra.ocr.base import OCREngine, OCRExtractionError, OCRField
 from app.infra.storage import StorageClient
+from app.services.document_structuring import structure_document
 from app.services.routing import route_ocr_fields
-from app.services.routing_store import store_routing_result
+from app.services.routing_store import RoutingFieldResult, store_routing_result
 
 
 @dataclass
@@ -29,6 +32,26 @@ class OCRRunResult:
     fields: list[OCRField]
 
 
+async def _route_fields(
+    fields: list[OCRField],
+    *,
+    settings: Settings,
+    structurer: LLMStructurer | None,
+    cfg: ScoringConfig,
+) -> list[RoutingFieldResult]:
+    """OCR 모드별 필드 산출 — template(룰 라우팅) | general(LLM 문서 구조화)."""
+    if settings.ocr_mode == "general":
+        if structurer is None:
+            raise ValueError("general 모드에는 LLMStructurer 가 필요합니다")
+        raw_field = (
+            fields[0] if fields else OCRField(field_key="ocr_raw_text", text="", confidence=0.0)
+        )
+        return await structure_document(
+            structurer=structurer, raw_field=raw_field, settings=settings
+        )
+    return route_ocr_fields(fields, cfg)
+
+
 async def run_ocr(
     *,
     session: Session,
@@ -36,6 +59,7 @@ async def run_ocr(
     engine: OCREngine,
     storage: StorageClient,
     settings: Settings,
+    structurer: LLMStructurer | None = None,
 ) -> OCRRunResult:
     order = session.get(Order, order_id)
     if order is None:
@@ -69,7 +93,7 @@ async def run_ocr(
     # 라우팅 결과 저장 — 상태를 needs_review | auto_confirmed 로 전이.
     # 실패 시 store_routing_result 가 롤백 후 routing 상태를 유지한다.
     cfg = get_scoring_config()
-    routed = route_ocr_fields(fields, cfg)
+    routed = await _route_fields(fields, settings=settings, structurer=structurer, cfg=cfg)
     store_result = store_routing_result(
         session=session,
         order_id=order_id,
