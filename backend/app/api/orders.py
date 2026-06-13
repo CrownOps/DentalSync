@@ -79,9 +79,12 @@ async def _run_ocr_pipeline(
             storage=storage,
             settings=settings,
         )
-    except OCRExtractionError:
-        # run_ocr 가 이미 status=ocr_failed 커밋 — 프론트 폴링이 재시도 UI 로 분기
-        logger.warning("백그라운드 OCR 실패(order_id=%s) — 수동 재시도 대상", order_id)
+    except OCRExtractionError as exc:
+        # run_ocr 가 이미 status=ocr_failed 커밋 — 프론트 폴링이 재시도 UI 로 분기.
+        # CLOVA 진단 메시지(code/message/format 등)를 함께 남겨 사후 원인 추적을 가능케 한다.
+        logger.warning(
+            "백그라운드 OCR 실패(order_id=%s) — 수동 재시도 대상: %s", order_id, exc
+        )
     except Exception:
         logger.exception("백그라운드 파이프라인 오류(order_id=%s)", order_id)
         session.rollback()
