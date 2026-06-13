@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -160,13 +160,13 @@ def test_sorted_by_received_at_desc(
             s,
             OrderStatus.confirmed,
             [0.9],
-            received_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            received_at=datetime(2026, 1, 1, tzinfo=UTC),
         )
         newer = _make_order(
             s,
             OrderStatus.confirmed,
             [0.9],
-            received_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
+            received_at=datetime(2026, 6, 1, tzinfo=UTC),
         )
 
     resp = client.get("/api/labs/1/orders")
