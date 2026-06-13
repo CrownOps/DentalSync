@@ -67,7 +67,7 @@ def _classify_fallback(key: str) -> FieldType:
     return FieldType.C
 
 
-def _classify(field_key: str, spec: FieldSpec | None) -> FieldType:
+def classify_field_type(field_key: str, spec: FieldSpec | None) -> FieldType:
     key = field_key.lower()
     if any(k in key for k in _SHADE_KEYS):
         return FieldType.SHADE
@@ -160,7 +160,7 @@ def _make_inferred_result(
     )
 
 
-def _backfill_from_note(results: list[RoutingFieldResult]) -> None:
+def backfill_from_note(results: list[RoutingFieldResult]) -> None:
     """note(ocr_raw_text)에서 쉐이드/치식/재료를 역추출해 '비어있는' 대상 칸을 채운다.
 
     이미 값이 있는 칸은 절대 덮어쓰지 않는다(OCR 인식값 보존). 추출값은 항상
@@ -200,7 +200,7 @@ def route_ocr_fields(
     results: list[RoutingFieldResult] = []
     for f in ocr_fields:
         spec = get_field_spec(f.field_key)
-        field_type = _classify(f.field_key, spec)
+        field_type = classify_field_type(f.field_key, spec)
         rule_pass, corrected = _apply_rules(field_type, f.field_key.lower(), spec, f.text)
 
         components = {"ocr_conf": f.confidence}
@@ -226,5 +226,5 @@ def route_ocr_fields(
         )
 
     # note 본문에만 적힌 쉐이드/치식/재료를 전용 칸으로 역추출(비어있을 때만).
-    _backfill_from_note(results)
+    backfill_from_note(results)
     return results

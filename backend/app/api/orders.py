@@ -22,6 +22,7 @@ from app.api.deps import (
     get_cache,
     get_db,
     get_db_session_factory,
+    get_llm_structurer,
     get_ocr_engine,
     get_settings_dep,
     get_storage,
@@ -36,6 +37,7 @@ from app.domain.errors import (
     StorageError,
 )
 from app.infra.cache import CacheClient
+from app.infra.llm.base import LLMStructurer
 from app.infra.ocr.base import OCREngine, OCRExtractionError
 from app.infra.storage import StorageClient
 from app.schemas.orders import (
@@ -64,6 +66,7 @@ async def _run_ocr_pipeline(
     engine: OCREngine,
     storage: StorageClient,
     settings: Settings,
+    structurer: LLMStructurer,
 ) -> None:
     """업로드 직후 백그라운드 OCR 파이프라인 (Phase 1: BackgroundTasks, Phase 2: QStash).
 
@@ -78,6 +81,7 @@ async def _run_ocr_pipeline(
             engine=engine,
             storage=storage,
             settings=settings,
+            structurer=structurer,
         )
     except OCRExtractionError as exc:
         # run_ocr 가 이미 status=ocr_failed 커밋 — 프론트 폴링이 재시도 UI 로 분기.
@@ -109,6 +113,7 @@ async def create_order(
     cache: Annotated[CacheClient, Depends(get_cache)],
     settings: Annotated[Settings, Depends(get_settings_dep)],
     engine: Annotated[OCREngine, Depends(get_ocr_engine)],
+    structurer: Annotated[LLMStructurer, Depends(get_llm_structurer)],
     session_factory: Annotated[sessionmaker[Session], Depends(get_db_session_factory)],
     background_tasks: BackgroundTasks,
 ) -> OrderIntakeResponse:
@@ -135,6 +140,7 @@ async def create_order(
         engine=engine,
         storage=storage,
         settings=settings,
+        structurer=structurer,
     )
 
     return OrderIntakeResponse.from_result(result)
@@ -319,6 +325,7 @@ async def retry_ocr(
     order_id: int,
     session: Annotated[Session, Depends(get_db)],
     engine: Annotated[OCREngine, Depends(get_ocr_engine)],
+    structurer: Annotated[LLMStructurer, Depends(get_llm_structurer)],
     storage: Annotated[StorageClient, Depends(get_storage)],
     settings: Annotated[Settings, Depends(get_settings_dep)],
 ) -> OCRRunResponse:
@@ -338,6 +345,7 @@ async def retry_ocr(
             engine=engine,
             storage=storage,
             settings=settings,
+            structurer=structurer,
         )
     except OrderNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
