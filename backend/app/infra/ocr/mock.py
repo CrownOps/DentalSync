@@ -7,6 +7,7 @@ example 보유)를 기반으로 고정 응답을 반환한다. 개인정보(pii)
 from __future__ import annotations
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -68,4 +69,10 @@ class MockOCREngine:
         )
 
     async def extract(self, image_bytes: bytes, template_id: str) -> list[OCRField]:
+        # 로컬 QA 전용: MOCK_OCR_CONFIDENCE 로 OCR 신뢰도를 낮춰 저품질 스캔을
+        # 재현한다(needs_review 분기 시연용). 미설정 시 layout 기본값(0.95) 유지.
+        override = os.getenv("MOCK_OCR_CONFIDENCE")
+        if override:
+            conf = float(override)
+            return [f.model_copy(update={"confidence": conf}) for f in self._fields]
         return [f.model_copy() for f in self._fields]
