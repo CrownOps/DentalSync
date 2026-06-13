@@ -60,6 +60,16 @@ async def test_mock_engine_custom_fields() -> None:
     assert fields[0].text == "B1"
 
 
+async def test_mock_engine_note_only_omits_dedicated_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MOCK_OCR_NOTE_ONLY: 쉐이드/치식/재료 칸을 제외해 note 백필 경로를 재현한다."""
+    monkeypatch.setenv("MOCK_OCR_NOTE_ONLY", "1")
+    keys = {f.field_key for f in await MockOCREngine().extract(b"image", "tmpl")}
+    assert keys.isdisjoint({"shade", "tooth_numbers", "material"})
+    assert "ocr_raw_text" in keys  # note 원문은 유지 → 라우팅이 여기서 역추출
+
+
 # --- CLOVA 응답 파싱 --------------------------------------------------------
 def test_parse_clova_response_maps_fields() -> None:
     fields = parse_clova_response(SAMPLE_CLOVA)

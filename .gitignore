@@ -44,6 +44,7 @@ Thumbs.db
 .demo_marking/
 
 # ---- 로컬 개발 데이터 (DATABASE_URL=sqlite / STORAGE_BACKEND=local) ----
+backend/*.db
 backend/data/*.db
 backend/data/uploads/
 backend/data/e2e_test.jpg
