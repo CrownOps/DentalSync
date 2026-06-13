@@ -11,12 +11,14 @@ import {
 import {
   fetchReviewQueueV1,
   fetchReviewDetailV1,
+  fetchLabOrders,
   updateFieldV1,
   confirmReviewOrderV1,
   fetchOrderStatus,
   uploadOrder,
   ReviewQueueResponseV1,
   ReviewDetailResponse,
+  ReviewQueueItem,
   OrderStatusResponse,
   OrderIntakeResponse,
 } from "@/lib/api";
@@ -37,6 +39,17 @@ export function useReviewQueue(params?: {
     queryKey: ["review-queue-v1", params?.limit ?? 50, params?.offset ?? 0],
     queryFn: () => fetchReviewQueueV1(params),
     refetchInterval: 5000,
+  });
+}
+
+export function useLabOrders(
+  labId: number | null,
+  statuses?: string[],
+): UseQueryResult<ReviewQueueItem[]> {
+  return useQuery({
+    queryKey: ["lab-orders", labId, statuses ?? []],
+    queryFn: () => fetchLabOrders(labId!, statuses),
+    enabled: labId !== null,
   });
 }
 

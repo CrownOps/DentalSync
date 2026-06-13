@@ -12,6 +12,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Query,
     UploadFile,
 )
 from sqlalchemy import func
@@ -158,6 +159,47 @@ def list_review_queue(
         .order_by(subq.c.min_score.asc().nulls_last())
         .all()
     )
+
+    return [
+        ReviewQueueItem(
+            order_id=order.id,
+            lab_id=order.lab_id,
+            status=order.status.value,
+            received_at=order.received_at.isoformat() if order.received_at else None,
+            due_date=order.due_date.isoformat() if order.due_date else None,
+            min_score=min_score,
+            field_count=field_count or 0,
+        )
+        for order, min_score, field_count in rows
+    ]
+
+
+@router.get("/labs/{lab_id}/orders", response_model=list[ReviewQueueItem])
+def list_lab_orders(
+    lab_id: int,
+    session: Annotated[Session, Depends(get_db)],
+    status: Annotated[list[OrderStatus] | None, Query()] = None,
+) -> list[ReviewQueueItem]:
+    """기공소별 의뢰서 목록 — 최신순. status 쿼리로 상태 필터(복수 지정 가능)."""
+    subq = (
+        session.query(
+            OrderField.order_id,
+            func.min(OrderField.score).label("min_score"),
+            func.count(OrderField.id).label("field_count"),
+        )
+        .group_by(OrderField.order_id)
+        .subquery()
+    )
+
+    query = (
+        session.query(Order, subq.c.min_score, subq.c.field_count)
+        .outerjoin(subq, Order.id == subq.c.order_id)
+        .filter(Order.lab_id == lab_id)
+    )
+    if status:
+        query = query.filter(Order.status.in_(status))
+
+    rows = query.order_by(Order.received_at.desc().nulls_last(), Order.id.desc()).all()
 
     return [
         ReviewQueueItem(
