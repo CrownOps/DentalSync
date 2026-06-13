@@ -92,6 +92,10 @@ class Order(Base, TimestampMixin):
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     due_date: Mapped[date | None] = mapped_column(Date, default=None)
 
+    # status=ocr_failed 시 실패 사유(CLOVA code/message, 스토리지 오류 등) 보존.
+    # 성공 전이 시 None 으로 초기화한다. 로그 보존기간과 무관하게 사후 추적 가능.
+    error_detail: Mapped[str | None] = mapped_column(Text, default=None)
+
     lab: Mapped[Lab] = relationship(back_populates="orders")
     fields: Mapped[list[OrderField]] = relationship(
         back_populates="order",
