@@ -39,6 +39,7 @@ class FieldFlags:
     needs_review: bool = False
     forced_hitl: bool = False
     model_escalated: bool = False
+    inferred_from_note: bool = False
     field_type: str = ""
 
 
@@ -108,6 +109,7 @@ def store_routing_result(
                 "needs_review": field_status == FieldStatus.needs_review,
                 "forced_hitl": fr.flags.forced_hitl,
                 "model_escalated": fr.flags.model_escalated,
+                "inferred_from_note": fr.flags.inferred_from_note,
                 "corrected_by_human": False,
             }
 
