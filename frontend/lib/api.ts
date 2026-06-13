@@ -128,6 +128,17 @@ export function fetchReviewQueue(): Promise<ReviewQueueItem[]> {
   return apiFetch<ReviewQueueItem[]>("/api/orders");
 }
 
+/** 기공소별 의뢰서 목록 — statuses 미지정 시 전체 상태. */
+export function fetchLabOrders(
+  labId: number,
+  statuses?: string[],
+): Promise<ReviewQueueItem[]> {
+  const qs = new URLSearchParams();
+  (statuses ?? []).forEach((s) => qs.append("status", s));
+  const query = qs.toString() ? `?${qs}` : "";
+  return apiFetch<ReviewQueueItem[]>(`/api/labs/${labId}/orders${query}`);
+}
+
 export function fetchOrderDetail(orderId: number): Promise<OrderDetailResponse> {
   return apiFetch<OrderDetailResponse>(`/api/orders/${orderId}`);
 }

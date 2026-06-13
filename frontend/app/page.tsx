@@ -57,6 +57,19 @@ export default function Home() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
           </svg>
         </Link>
+
+        <Link
+          href="/lab"
+          className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50"
+        >
+          <div>
+            <p className="text-sm font-semibold text-gray-900">기공소별 의뢰서 조회</p>
+            <p className="mt-0.5 text-xs text-gray-500">기공소 ID로 OCR 스캔 의뢰서 조회 — 상태별 필터</p>
+          </div>
+          <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
       </div>
     </main>
   );
