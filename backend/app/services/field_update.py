@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 from app.services.type_b_rules import (
     PASS_FULL,
     TOOTH_NUMBER_KEYS,
+    normalize_date,
     score_tooth_numbers,
 )
 
@@ -60,14 +61,18 @@ def validate_tooth_number(value: str) -> None:
 
 
 def validate_date_value(value: str) -> date:
-    """날짜 형식 검증 — YYYY-MM-DD."""
-    try:
-        return date.fromisoformat(value)
-    except ValueError as exc:
+    """날짜 형식 검증 + ISO 정규화 — 라우팅 룰(normalize_date)과 동일 파서 사용.
+
+    점/슬래시/한글("2026.06.15", "2026년 6월 15일") 등 의뢰서·OCR 원본 표기를
+    그대로 수용해 ISO(YYYY-MM-DD)로 정규화한다. 연/월/일이 모두 있어야 한다.
+    """
+    iso = normalize_date(value)
+    if iso is None:
         raise FieldValidationError(
             rule="date_format",
-            message=f"날짜 형식 오류: {value!r} (YYYY-MM-DD 필요)",
-        ) from exc
+            message=f"날짜 형식 오류: {value!r} (예: '2026-06-15', '2026.6.15', '2026년 6월 15일')",
+        )
+    return date.fromisoformat(iso)
 
 
 def validate_shade(value: str) -> None:
@@ -133,9 +138,11 @@ def apply_field_update(
             f"(field={field.status.value}, order={order.status.value})"
         )
 
-    # 타입별 값 검증
+    # 타입별 값 검증. 날짜는 ISO 정규화 결과를 저장값으로 채택(라우팅 출력과 동일).
     if field.field_type == FieldType.B:
-        _validate_type_b_field(field_key, new_value, order)
+        normalized = _validate_type_b_field(field_key, new_value, order)
+        if normalized is not None:
+            new_value = normalized
     elif field.field_type == FieldType.SHADE:
         validate_shade(new_value)
 
@@ -174,17 +181,25 @@ def apply_field_update(
     )
 
 
-def _validate_type_b_field(field_key: str, value: str, order: Order) -> None:
-    """Type B 필드별 검증 — field_key 패턴으로 분기."""
+def _validate_type_b_field(field_key: str, value: str, order: Order) -> str | None:
+    """Type B 필드별 검증 — field_key 패턴으로 분기.
+
+    날짜/납기 필드는 ISO(YYYY-MM-DD)로 정규화한 문자열을 반환한다.
+    그 외(치아번호 등)는 저장값을 바꾸지 않으므로 None.
+    """
     key_lower = field_key.lower()
 
     if any(k in key_lower for k in TOOTH_NUMBER_KEYS):
         validate_tooth_number(value)
+        return None
 
-    elif "due" in key_lower or "납기" in key_lower:
+    if "due" in key_lower or "납기" in key_lower:
         parsed = validate_date_value(value)
         received = order.received_at.date() if order.received_at else None
         validate_due_date_after_received(parsed, received)
+        return parsed.isoformat()
 
-    elif "date" in key_lower or "날짜" in key_lower or "접수" in key_lower:
-        validate_date_value(value)
+    if "date" in key_lower or "날짜" in key_lower or "접수" in key_lower:
+        return validate_date_value(value).isoformat()
+
+    return None

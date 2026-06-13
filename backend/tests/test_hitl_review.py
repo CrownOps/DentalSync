@@ -241,6 +241,128 @@ def test_fdi_ambiguous_range_rejected(
     assert resp.json()["detail"]["error"]["code"] == "fdi_range"
 
 
+# ── 날짜 필드 정규화 / 검증 ───────────────────────────────────────────────────
+
+
+def test_date_field_dot_notation_normalized_to_iso(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    """점 표기·한글 표기 등 의뢰서 원본 형식을 수용하고 ISO로 정규화해 저장."""
+    order = _make_order(
+        session_factory,
+        fields=[{"key": "received_date", "type": FieldType.B, "score": 0.5}],
+    )
+    resp = client.patch(
+        f"/api/v1/review/{order.id}/fields/received_date",
+        json={"value": "2026.06.15"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["corrected_value"] == "2026-06-15"
+
+
+def test_date_field_korean_notation_accepted(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    order = _make_order(
+        session_factory,
+        fields=[{"key": "received_date", "type": FieldType.B, "score": 0.5}],
+    )
+    resp = client.patch(
+        f"/api/v1/review/{order.id}/fields/received_date",
+        json={"value": "2026년 6월 15일"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["corrected_value"] == "2026-06-15"
+
+
+def test_date_field_invalid_format_rejected(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    order = _make_order(
+        session_factory,
+        fields=[{"key": "received_date", "type": FieldType.B, "score": 0.5}],
+    )
+    resp = client.patch(
+        f"/api/v1/review/{order.id}/fields/received_date",
+        json={"value": "내일쯤"},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"]["code"] == "date_format"
+
+
+def test_due_date_before_received_rejected(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    """납기일이 접수일보다 이전이면 422 — 정규화 후 비교."""
+    from datetime import datetime
+
+    with session_factory() as s:
+        order = Order(
+            lab_id=1,
+            image_url="orders/test.jpg",
+            image_hash="due",
+            status=OrderStatus.needs_review,
+            received_at=datetime(2026, 6, 15),
+        )
+        s.add(order)
+        s.flush()
+        s.add(OrderField(
+            order_id=order.id,
+            field_key="due_date",
+            field_type=FieldType.B,
+            raw_text="raw",
+            score=0.5,
+            status=FieldStatus.needs_review,
+            flags={},
+        ))
+        s.commit()
+        s.refresh(order)
+        order_id = order.id
+
+    resp = client.patch(
+        f"/api/v1/review/{order_id}/fields/due_date",
+        json={"value": "2026.06.10"},  # 접수(6/15)보다 이전
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"]["code"] == "due_date_after_received"
+
+
+def test_due_date_on_or_after_received_normalized(
+    client: TestClient, session_factory: sessionmaker[Session]
+) -> None:
+    from datetime import datetime
+
+    with session_factory() as s:
+        order = Order(
+            lab_id=1,
+            image_url="orders/test.jpg",
+            image_hash="due2",
+            status=OrderStatus.needs_review,
+            received_at=datetime(2026, 6, 15),
+        )
+        s.add(order)
+        s.flush()
+        s.add(OrderField(
+            order_id=order.id,
+            field_key="due_date",
+            field_type=FieldType.B,
+            raw_text="raw",
+            score=0.5,
+            status=FieldStatus.needs_review,
+            flags={},
+        ))
+        s.commit()
+        s.refresh(order)
+        order_id = order.id
+
+    resp = client.patch(
+        f"/api/v1/review/{order_id}/fields/due_date",
+        json={"value": "2026/07/01"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["corrected_value"] == "2026-07-01"
+
+
 # ── training_labels 적재 + 익명화 ─────────────────────────────────────────────
 
 
