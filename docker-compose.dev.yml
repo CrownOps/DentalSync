@@ -5,6 +5,7 @@ services:
   postgres:
     image: postgres:16
     container_name: dentalsync-postgres
+    restart: unless-stopped   # 재부팅/Docker 재시작 후 자동 기동 (미설정 시 로컬 /api/orders 500의 원인)
     environment:
       POSTGRES_USER: dentalsync
       POSTGRES_PASSWORD: dentalsync
@@ -22,6 +23,7 @@ services:
   redis:
     image: redis:7
     container_name: dentalsync-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
