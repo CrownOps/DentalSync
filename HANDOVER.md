@@ -294,6 +294,31 @@ npm run dev   # http://localhost:3000
 업로드(/upload) → 자동 파이프라인 → 검토(/review/{id}) 인라인 수정 → 확정까지
 브라우저에서 전체 플로우 확인 가능.
 
+### 로컬 Postgres 사용 (docker-compose.dev.yml + mock/local/memory)
+
+SQLite 대신 운영과 같은 Postgres로 로컬을 돌리는 경로. DB만 실 Postgres이고
+스토리지/캐시/OCR은 외부 키 없이 동작하도록 로컬 백엔드를 쓴다.
+
+```bash
+# 1) 로컬 인프라 기동 (Postgres + Redis, restart=unless-stopped 라 재부팅 후 자동 기동)
+docker compose -f docker-compose.dev.yml up -d
+
+# 2) backend/.env
+#   DATABASE_URL=postgresql+psycopg://dentalsync:dentalsync@localhost:5432/dentalsync
+#   OCR_PROVIDER=mock
+#   STORAGE_BACKEND=local
+#   CACHE_BACKEND=memory
+cd backend
+uv run alembic upgrade head              # 스키마 적용 (Postgres 는 Alembic 으로만)
+uv run python -m scripts.dev_bootstrap   # Lab(id=1) 시드
+uv run uvicorn app.main:app --port 8000
+```
+
+> **트러블슈팅** — 프론트 업로드 시 `POST /api/orders` 500 + 브라우저 CORS 차단(`No 'Access-Control-Allow-Origin'`)이 뜨면:
+> CORS는 증상일 뿐 원인은 500이다. ① `docker ps | grep dentalsync-postgres` 로 DB 컨테이너 기동 확인(없으면 `docker compose -f docker-compose.dev.yml up -d`),
+> ② `backend/.env` 존재 확인(없으면 운영 기본값 R2/Redis/CLOVA로 동작해 실패),
+> ③ `.env` 변경 후엔 `get_settings` 캐시 때문에 **uvicorn 재시작** 필수.
+
 ---
 
 ## 13. 주요 설계 결정 사항
