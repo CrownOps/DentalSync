@@ -140,7 +140,11 @@ def _make_inferred_result(
 ) -> RoutingFieldResult:
     """note 추출값으로 채운/합성한 필드 결과 — forced_hitl + inferred_from_note."""
     # 빈 칸을 채우는 경우 기존 raw(bbox) 를 보존해 HITL 하이라이트가 유지되도록 한다.
-    raw = existing.raw if existing is not None else RawOCR(text=None, bbox=None, infer_confidence=None)
+    raw = (
+        existing.raw
+        if existing is not None
+        else RawOCR(text=None, bbox=None, infer_confidence=None)
+    )
     return RoutingFieldResult(
         field_key=field_key,
         field_type=field_type,

@@ -71,7 +71,8 @@ def extract_tooth_numbers(text: str) -> tuple[str, ...]:
 # ascii 키워드는 단어경계로, 한글 키워드는 부분일치로 매칭한다.
 _MATERIAL_KEYWORDS: tuple[tuple[str, str], ...] = (
     ("zirconia", "zirconia"), ("zir", "zirconia"), ("zr", "zirconia"),
-    ("지르코니아", "zirconia"), ("질코니아", "zirconia"), ("지르콘", "zirconia"), ("지르", "zirconia"),
+    ("지르코니아", "zirconia"), ("질코니아", "zirconia"), ("지르콘", "zirconia"),
+    ("지르", "zirconia"),
     ("pfm", "pfm"), ("피에프엠", "pfm"), ("도재금속", "pfm"),
     ("lithium disilicate", "lithium_disilicate"), ("e.max", "lithium_disilicate"),
     ("emax", "lithium_disilicate"), ("이맥스", "lithium_disilicate"),
