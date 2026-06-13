@@ -131,10 +131,22 @@ function FieldForm({ order, activeKey, onFieldFocus }: FieldFormProps) {
   // 로컬 필드 상태 (optimistic update용)
   const [localFields, setLocalFields] = useState<FieldEnvelope[]>(order.fields);
 
-  // 서버 데이터가 갱신되면 로컬 상태 동기화
+  // 항목별 편집 draft — 확정 버튼을 누르기 전까지 서버에 저장하지 않는다.
+  const [drafts, setDrafts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(order.fields.map((f) => [f.field_key, f.value ?? ""])),
+  );
+  // 저장 진행 중인 필드 키 (해당 항목 버튼만 비활성화)
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+
+  // 서버 데이터가 갱신되면 로컬 상태 + draft 동기화
   useEffect(() => {
     setLocalFields(order.fields);
+    setDrafts(Object.fromEntries(order.fields.map((f) => [f.field_key, f.value ?? ""])));
   }, [order.fields]);
+
+  const setDraft = useCallback((key: string, value: string) => {
+    setDrafts((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   const pendingFields = localFields.filter((f) => f.status === "needs_review");
   const allConfirmed = pendingFields.length === 0;
@@ -178,6 +190,7 @@ function FieldForm({ order, activeKey, onFieldFocus }: FieldFormProps) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["review-detail", order.order_id] });
     },
+    onSettled: () => setSavingKey(null),
   });
 
   // 확정
@@ -246,6 +259,11 @@ function FieldForm({ order, activeKey, onFieldFocus }: FieldFormProps) {
                     강제검토
                   </span>
                 )}
+                {!!(f.flags as Record<string, unknown> | null)?.inferred_from_note && (
+                  <span className="rounded bg-sky-100 px-1.5 py-0.5 text-sky-700">
+                    note 자동추출
+                  </span>
+                )}
                 {f.status !== "needs_review" && (
                   <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500">
                     확정됨
@@ -261,18 +279,37 @@ function FieldForm({ order, activeKey, onFieldFocus }: FieldFormProps) {
             )}
 
             {isEditable ? (
-              <input
-                type="text"
-                defaultValue={currentVal}
-                onFocus={() => onFieldFocus(f.field_key)}
-                onBlur={(e) => {
-                  const newVal = e.currentTarget.value;
-                  if (newVal !== currentVal) {
-                    updateField({ fieldKey: f.field_key, value: newVal });
-                  }
-                }}
-                className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={drafts[f.field_key] ?? ""}
+                  onFocus={() => onFieldFocus(f.field_key)}
+                  onChange={(e) => setDraft(f.field_key, e.currentTarget.value)}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                <button
+                  type="button"
+                  disabled={savingKey === f.field_key}
+                  onClick={() => {
+                    setSavingKey(f.field_key);
+                    updateField({
+                      fieldKey: f.field_key,
+                      value: drafts[f.field_key] ?? "",
+                    });
+                  }}
+                  className={`shrink-0 rounded px-3 py-1 text-sm font-medium text-white disabled:opacity-50 ${
+                    f.status === "needs_review"
+                      ? "bg-blue-600 hover:bg-blue-700"
+                      : "bg-gray-400 hover:bg-gray-500"
+                  }`}
+                >
+                  {savingKey === f.field_key
+                    ? "저장 중…"
+                    : f.status === "needs_review"
+                      ? "확정"
+                      : "재확정"}
+                </button>
+              </div>
             ) : f.pii ? (
               <PiiValue value={currentVal || null} />
             ) : (

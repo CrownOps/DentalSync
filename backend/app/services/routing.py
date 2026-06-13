@@ -23,6 +23,7 @@ from app.domain.enums import CorrectedBy, FieldType
 from app.domain.scoring import ScoringConfig
 from app.infra.ocr.base import OCRField
 from app.services.field_catalog import FieldSpec, get_field_spec
+from app.services.note_extraction import NoteExtraction, extract_from_note
 from app.services.routing_store import (
     FieldConfidence,
     FieldFlags,
@@ -46,6 +47,17 @@ _TOOTH_KEYS = TOOTH_NUMBER_KEYS
 _DATE_KEYS = ("date", "due", "날짜", "납기", "접수")
 _SHADE_KEYS = ("shade", "셰이드", "색상")
 _DATE_LAYOUT_TYPES = ("date", "datetime")
+
+# note(자유텍스트) 백필: 의사가 전용 칸 대신 note 본문에 적은 핵심 3종을 역추출한다.
+_NOTE_SOURCE_KEY = "ocr_raw_text"
+# (대상 field_key, 합성 시 field_type) — 채움/합성 대상 (비어있을 때만).
+_NOTE_BACKFILL_TARGETS: tuple[tuple[str, FieldType], ...] = (
+    ("shade", FieldType.SHADE),
+    ("tooth_numbers", FieldType.B),
+    ("material", FieldType.A),
+)
+# note 추출값은 항상 사람 확인(forced_hitl) 대상이므로 점수는 '확인 필요' 신호로 고정한다.
+_INFERRED_SCORE = 0.5
 
 
 def _classify_fallback(key: str) -> FieldType:
@@ -109,6 +121,72 @@ def _apply_rules(
     return None, None
 
 
+def _note_value(extraction: NoteExtraction, field_key: str) -> str | None:
+    """대상 필드별 note 추출값을 저장 문자열로 변환. 없으면 None."""
+    if field_key == "shade":
+        return extraction.shade
+    if field_key == "tooth_numbers":
+        return " ".join(extraction.tooth_numbers) or None
+    if field_key == "material":
+        return " ".join(extraction.materials) or None
+    return None
+
+
+def _make_inferred_result(
+    field_key: str,
+    field_type: FieldType,
+    value: str,
+    existing: RoutingFieldResult | None,
+) -> RoutingFieldResult:
+    """note 추출값으로 채운/합성한 필드 결과 — forced_hitl + inferred_from_note."""
+    # 빈 칸을 채우는 경우 기존 raw(bbox) 를 보존해 HITL 하이라이트가 유지되도록 한다.
+    raw = (
+        existing.raw
+        if existing is not None
+        else RawOCR(text=None, bbox=None, infer_confidence=None)
+    )
+    return RoutingFieldResult(
+        field_key=field_key,
+        field_type=field_type,
+        raw=raw,
+        corrected_value=value,
+        corrected_by=CorrectedBy.system,
+        confidence=FieldConfidence(score=_INFERRED_SCORE),
+        flags=FieldFlags(
+            field_type=field_type.value,
+            forced_hitl=True,
+            inferred_from_note=True,
+        ),
+    )
+
+
+def _backfill_from_note(results: list[RoutingFieldResult]) -> None:
+    """note(ocr_raw_text)에서 쉐이드/치식/재료를 역추출해 '비어있는' 대상 칸을 채운다.
+
+    이미 값이 있는 칸은 절대 덮어쓰지 않는다(OCR 인식값 보존). 추출값은 항상
+    needs_review(forced_hitl)로 띄워 사람이 최종 확인한다. results 를 제자리 수정한다.
+    """
+    note_field = next((r for r in results if r.field_key == _NOTE_SOURCE_KEY), None)
+    if note_field is None or not (note_field.raw.text or "").strip():
+        return
+
+    extraction = extract_from_note(note_field.raw.text)
+    by_key = {r.field_key: r for r in results}
+
+    for field_key, field_type in _NOTE_BACKFILL_TARGETS:
+        value = _note_value(extraction, field_key)
+        if value is None:
+            continue
+        existing = by_key.get(field_key)
+        if existing is not None and (existing.corrected_value or "").strip():
+            continue  # 비어있지 않으면 채우지 않음
+        inferred = _make_inferred_result(field_key, field_type, value, existing)
+        if existing is not None:
+            results[results.index(existing)] = inferred
+        else:
+            results.append(inferred)
+
+
 def route_ocr_fields(
     ocr_fields: list[OCRField],
     cfg: ScoringConfig,
@@ -146,4 +224,7 @@ def route_ocr_fields(
                 flags=FieldFlags(field_type=field_type.value),
             )
         )
+
+    # note 본문에만 적힌 쉐이드/치식/재료를 전용 칸으로 역추출(비어있을 때만).
+    _backfill_from_note(results)
     return results
