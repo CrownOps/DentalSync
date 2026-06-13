@@ -105,7 +105,7 @@ async def test_clova_retries_3_times_then_fails() -> None:
 
     # 5xx 는 일시적 오류 → 3회 재시도 후 OCRExtractionError 재전파
     with pytest.raises(OCRExtractionError):
-        await _engine(handler).extract(b"img", "tmpl")
+        await _engine(handler).extract(b"img", "42209")
     assert calls["n"] == 3
 
 
@@ -116,7 +116,7 @@ async def test_clova_success_calls_once() -> None:
         calls["n"] += 1
         return httpx.Response(200, json=SAMPLE_CLOVA)
 
-    fields = await _engine(handler).extract(b"img", "tmpl")
+    fields = await _engine(handler).extract(b"img", "42209")
     assert calls["n"] == 1  # 의뢰서당 정확히 1회
     assert {f.field_key for f in fields} == {"shade", "tooth_numbers"}
 
@@ -145,9 +145,36 @@ async def test_clova_request_declares_actual_format() -> None:
         seen["body"] = req.content.decode("latin-1")
         return httpx.Response(200, json=SAMPLE_CLOVA)
 
-    await _engine(handler).extract(_PNG_MAGIC + b"img", "tmpl")
+    await _engine(handler).extract(_PNG_MAGIC + b"img", "42209")
     assert '"format": "png"' in seen["body"]
     assert "requisition.png" in seen["body"]
+
+
+async def test_clova_request_serializes_template_id_as_int() -> None:
+    """templateIds 는 정수 배열, timestamp 는 0 이 아닌 호출 시각(ms)이어야 함."""
+    seen: dict[str, str] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen["body"] = req.content.decode("latin-1")
+        return httpx.Response(200, json=SAMPLE_CLOVA)
+
+    await _engine(handler).extract(b"img", "42209")
+    assert '"templateIds": [42209]' in seen["body"]  # 문자열 "42209" 아님
+    assert '"timestamp": 0' not in seen["body"]
+
+
+async def test_clova_non_numeric_template_id_fails_fast() -> None:
+    """비정수 templateId 는 CLOVA 호출 없이 설정 오류로 즉시 실패."""
+    calls = {"n": 0}
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(200, json=SAMPLE_CLOVA)
+
+    with pytest.raises(OCRParseError) as exc_info:
+        await _engine(handler).extract(b"img", "tmpl")
+    assert calls["n"] == 0
+    assert "정수" in str(exc_info.value)
 
 
 async def test_clova_4xx_not_retried() -> None:
@@ -158,5 +185,34 @@ async def test_clova_4xx_not_retried() -> None:
         return httpx.Response(400, json={})
 
     with pytest.raises(OCRParseError):
-        await _engine(handler).extract(b"img", "tmpl")
+        await _engine(handler).extract(b"img", "42209")
     assert calls["n"] == 1  # 4xx 는 재시도하지 않음
+
+
+async def test_clova_4xx_surfaces_response_body() -> None:
+    """400 사유(응답 본문)를 에러 메시지에 실어 진단 가능해야 함."""
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400, json={"code": "0011", "message": "Invalid templateIds"}
+        )
+
+    with pytest.raises(OCRParseError) as exc_info:
+        await _engine(handler).extract(b"img", "42209")
+    msg = str(exc_info.value)
+    assert "HTTP 400" in msg
+    assert "Invalid templateIds" in msg  # 실제 사유가 메시지에 노출
+
+
+async def test_clova_empty_template_id_fails_fast() -> None:
+    """빈 templateId 는 CLOVA 호출 없이 설정 누락으로 즉시 실패."""
+    calls = {"n": 0}
+
+    def handler(_req: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(200, json=SAMPLE_CLOVA)
+
+    with pytest.raises(OCRParseError) as exc_info:
+        await _engine(handler).extract(b"img", "   ")
+    assert calls["n"] == 0  # 네트워크 호출 자체가 발생하지 않음
+    assert "templateId" in str(exc_info.value)

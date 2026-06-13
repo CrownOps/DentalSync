@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from typing import Any
 
@@ -44,6 +45,29 @@ def detect_clova_format(image_bytes: bytes) -> str:
         if image_bytes.startswith(magic):
             return fmt
     return "jpg"
+
+
+def _error_detail(resp: httpx.Response, *, limit: int = 500) -> str:
+    """CLOVA 오류 응답 본문에서 진단용 사유를 추출(없으면 원문 일부).
+
+    CLOVA 는 4xx/5xx 시 본문 JSON 으로 실제 사유(예: 잘못된 templateIds,
+    format 불일치)를 돌려준다. 이를 버리면 로그에 'HTTP 400' 만 남아 원인을
+    알 수 없으므로, 메시지에 함께 실어 둔다.
+    """
+    try:
+        body = resp.json()
+    except (json.JSONDecodeError, ValueError):
+        text = resp.text.strip()
+        return f"body={text[:limit]}" if text else "(빈 본문)"
+    if isinstance(body, dict):
+        # CLOVA 오류 스키마: {"code": ..., "message": ...} 또는 {"error": {...}}
+        nested = body.get("error")
+        err = nested if isinstance(nested, dict) else body
+        code = err.get("code") or err.get("errorCode")
+        message = err.get("message") or err.get("errorMessage")
+        if code or message:
+            return f"code={code} message={message}"
+    return f"body={json.dumps(body, ensure_ascii=False)[:limit]}"
 
 
 def parse_clova_response(payload: dict[str, Any]) -> list[OCRField]:
@@ -101,6 +125,17 @@ class CLOVAOCREngine(OCREngine):
         )
 
     async def extract(self, image_bytes: bytes, template_id: str) -> list[OCRField]:
+        # 빈/비정수 templateId 를 그대로 보내면 CLOVA 가 불투명한 400 을 돌려준다.
+        # 호출 전에 설정 문제임을 분명히 한다(재시도 무의미). CLOVA templateIds 는 정수.
+        tid = template_id.strip()
+        if not tid:
+            raise OCRParseError(
+                "CLOVA templateId 미설정 — CLOVA_TEMPLATE_ID 또는 lab.template_id 를 설정하세요"
+            )
+        if not tid.isdigit():
+            raise OCRParseError(
+                f"CLOVA templateId 는 정수여야 함(현재 {template_id!r})"
+            )
         payload = await self._call_with_retry(image_bytes, template_id)
         return parse_clova_response(payload)
 
@@ -117,12 +152,14 @@ class CLOVAOCREngine(OCREngine):
 
     async def _single_call(self, image_bytes: bytes, template_id: str) -> dict[str, Any]:
         image_format = detect_clova_format(image_bytes)
+        # timestamp: CLOVA 는 호출 시각(ms) 요구 — 0 은 거부될 수 있음
+        # templateIds: CLOVA 규격은 정수 배열(문자열이면 400)
         message = {
             "version": "V2",
             "requestId": str(uuid.uuid4()),
-            "timestamp": 0,
+            "timestamp": int(time.time() * 1000),
             "images": [{"format": image_format, "name": "requisition"}],
-            "templateIds": [template_id],
+            "templateIds": [int(template_id)],
         }
         headers = {"X-OCR-SECRET": self._secret}
         files = {
@@ -141,9 +178,13 @@ class CLOVAOCREngine(OCREngine):
             raise OCRTransientError(f"CLOVA 통신 오류: {exc}") from exc
 
         if resp.status_code >= 500 or resp.status_code == 429:
-            raise OCRTransientError(f"CLOVA 일시 오류: HTTP {resp.status_code}")
+            raise OCRTransientError(
+                f"CLOVA 일시 오류: HTTP {resp.status_code} — {_error_detail(resp)}"
+            )
         if resp.status_code != 200:
-            raise OCRParseError(f"CLOVA 비정상 응답: HTTP {resp.status_code}")
+            raise OCRParseError(
+                f"CLOVA 비정상 응답: HTTP {resp.status_code} — {_error_detail(resp)}"
+            )
 
         try:
             body: dict[str, Any] = resp.json()
