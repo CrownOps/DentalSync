@@ -151,12 +151,14 @@ class CLOVAOCREngine(OCREngine):
 
     async def _single_call(self, image_bytes: bytes, template_id: str) -> dict[str, Any]:
         image_format = detect_clova_format(image_bytes)
+        # timestamp: CLOVA 는 호출 시각(ms) 요구 — 0 은 거부될 수 있음
+        # templateIds: CLOVA 규격은 정수 배열(문자열이면 400)
         message = {
             "version": "V2",
             "requestId": str(uuid.uuid4()),
-            "timestamp": int(time.time() * 1000),  # CLOVA 는 호출 시각(ms) 요구 — 0 은 거부될 수 있음
+            "timestamp": int(time.time() * 1000),
             "images": [{"format": image_format, "name": "requisition"}],
-            "templateIds": [int(template_id)],  # CLOVA 규격: 정수 배열(문자열이면 400)
+            "templateIds": [int(template_id)],
         }
         headers = {"X-OCR-SECRET": self._secret}
         files = {
