@@ -45,7 +45,7 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     with factory() as s:
-        s.add(Lab(name="테스트기공소"))
+        s.add(Lab(name="테스트기공소", code="lab1", password_hash="x"))
         s.commit()
     yield factory
     engine.dispose()

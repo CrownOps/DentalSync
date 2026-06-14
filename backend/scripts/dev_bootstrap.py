@@ -15,6 +15,7 @@ from app.core.config import get_settings
 from app.db.base import Base
 from app.db.models import Lab
 from app.db.session import get_engine, get_session_factory
+from app.services.auth import hash_password
 
 
 def main() -> None:
@@ -31,9 +32,15 @@ def main() -> None:
     with get_session_factory()() as session:
         lab = session.get(Lab, 1)
         if lab is None:
-            session.add(Lab(name="로컬 개발 기공소"))
+            session.add(
+                Lab(
+                    name="로컬 개발 기공소",
+                    code="local-dev",
+                    password_hash=hash_password("local-dev"),
+                )
+            )
             session.commit()
-            print("Lab(id=1, name='로컬 개발 기공소') 시드 완료")
+            print("Lab(id=1, code='local-dev', pw='local-dev') 시드 완료")
         else:
             print(f"Lab(id=1, name={lab.name!r}) 이미 존재 — 시드 생략")
 

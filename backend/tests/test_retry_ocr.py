@@ -73,7 +73,7 @@ def harness() -> Iterator[Harness]:
     Base.metadata.create_all(engine)
     session_local = sessionmaker(bind=engine, expire_on_commit=False)
     with session_local() as s:
-        lab = Lab(name="lab", template_id="tmpl-1")
+        lab = Lab(name="lab", template_id="tmpl-1", code="lab1", password_hash="x")
         s.add(lab)
         s.flush()
         s.add(Order(id=1, lab_id=lab.id, image_url="orders/abc.jpg", image_hash="h"))

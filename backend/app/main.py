@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from app.api.health import router as health_router
+from app.api.labs import router as labs_router
 from app.api.orders import router as orders_router
 from app.api.v1.review import router as review_router
 from app.core.config import get_settings
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, on_unhandled_error)
 
     app.include_router(health_router)
+    app.include_router(labs_router)
     app.include_router(orders_router)
     app.include_router(review_router)
 

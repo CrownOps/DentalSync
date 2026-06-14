@@ -48,7 +48,7 @@ def session(engine: Engine) -> Iterator[Session]:
 
 
 def _seed_order_field(session: Session) -> OrderField:
-    lab = Lab(name="서울미소치과", template_id="tmpl-1")
+    lab = Lab(name="서울미소치과", template_id="tmpl-1", code="lab1", password_hash="x")
     session.add(lab)
     session.flush()
     order = Order(lab_id=lab.id, image_url="r2://orders/abc.jpg", image_hash="abc123")
@@ -115,7 +115,7 @@ def test_order_field_unique_constraint(session: Session) -> None:
 
 
 def test_order_status_default_is_uploaded(session: Session) -> None:
-    lab = Lab(name="lab")
+    lab = Lab(name="lab", code="lab1", password_hash="x")
     session.add(lab)
     session.flush()
     order = Order(lab_id=lab.id, image_url="r2://x", image_hash="h")
