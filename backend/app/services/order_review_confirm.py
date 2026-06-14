@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.db.models import FieldAuditLog, Order, OrderField, TrainingLabel
 from app.domain.enums import CorrectedBy, FieldStatus, OrderStatus
 from app.domain.errors import OrderNotFoundError
+from app.services.order_due_date import DUE_DATE_FIELD_KEYS, resolve_due_date
 
 
 class AlreadyConfirmedError(Exception):
@@ -123,6 +124,16 @@ def confirm_review_order(
             actor=actor,
         )
     )
+
+    # 사람이 납기 필드를 수정했을 수 있으므로 orders.due_date 를 최종값으로 재동기화.
+    due_candidates = {
+        f.field_key: (f.corrected_value or f.raw_text)
+        for f in fields
+        if f.field_key in DUE_DATE_FIELD_KEYS
+    }
+    resolved_due = resolve_due_date(due_candidates)
+    if resolved_due is not None:
+        order.due_date = resolved_due
 
     order.status = OrderStatus.confirmed
     session.commit()

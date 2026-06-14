@@ -17,6 +17,7 @@ from app.db.models import Order, OrderField
 from app.domain.enums import CorrectedBy, FieldStatus, FieldType, OrderStatus
 from app.domain.errors import OrderNotFoundError
 from app.domain.scoring import ScoringConfig
+from app.services.order_due_date import DUE_DATE_FIELD_KEYS, resolve_due_date
 
 
 @dataclass
@@ -146,6 +147,14 @@ def store_routing_result(
             OrderStatus.needs_review if needs_review_count > 0 else OrderStatus.auto_confirmed
         )
         order.status = order_status
+
+        # 납기일 달력(/calendar) 입력 — 납기 필드(보정값)를 orders.due_date 로 승격.
+        due_candidates = {
+            fr.field_key: (fr.corrected_value or fr.raw.text)
+            for fr in field_results
+            if fr.field_key in DUE_DATE_FIELD_KEYS
+        }
+        order.due_date = resolve_due_date(due_candidates)
 
         session.commit()
 
