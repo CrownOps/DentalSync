@@ -34,6 +34,14 @@ class LabNotFoundError(Exception):
         self.lab_id = lab_id
 
 
+class DuplicateLabCodeError(Exception):
+    """이미 사용 중인 기공소 로그인 코드 — 409."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(f"lab code already exists: {code}")
+        self.code = code
+
+
 class StorageError(Exception):
     """오브젝트 스토리지(R2) 작업 실패."""
 

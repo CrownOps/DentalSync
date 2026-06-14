@@ -55,6 +55,11 @@ class Lab(Base, CreatedAtMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     template_id: Mapped[str | None] = mapped_column(String(128), default=None)
 
+    # 사람이 읽는 로그인 코드 (내부 PK=id 는 코드 동작용으로 유지). 가입/로그인 식별자.
+    code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    # 비밀번호 해시만 저장 (평문/해시 응답 금지). pbkdf2_sha256 포맷 — app.services.auth.
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+
     users: Mapped[list[User]] = relationship(back_populates="lab")
     orders: Mapped[list[Order]] = relationship(back_populates="lab")
 

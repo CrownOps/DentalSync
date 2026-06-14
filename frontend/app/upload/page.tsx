@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { retryOcr } from "@/lib/api";
 import { useUploadOrder, useOrderStatus, POLL_STOP_STATUSES } from "@/lib/hooks";
+import { RequireLab } from "@/components/RequireLab";
+import type { LabSession } from "@/lib/auth";
 
 const MAX_FILE_SIZE_MB = 10;
 const ALLOWED_MIME = new Set([
@@ -24,12 +26,11 @@ const PROCESSING_STATUS_LABELS: Record<string, string> = {
   routing: "라우팅 분석 중…",
 };
 
-export default function UploadPage() {
+function UploadForm({ lab }: { lab: LabSession }) {
   const router = useRouter();
   const qc = useQueryClient();
 
   const [file, setFile] = useState<File | null>(null);
-  const [labId, setLabId] = useState<string>("1");
   const [fileError, setFileError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploadedOrderId, setUploadedOrderId] = useState<number | null>(null);
@@ -95,15 +96,10 @@ export default function UploadPage() {
 
   const handleSubmit = () => {
     if (!file) return;
-    const id = parseInt(labId, 10);
-    if (isNaN(id) || id <= 0) {
-      setSubmitError("유효한 기공소 ID를 입력해주세요.");
-      return;
-    }
     setSubmitError(null);
     const fd = new FormData();
     fd.append("image", file);
-    fd.append("lab_id", String(id));
+    fd.append("lab_id", String(lab.labId));
     upload(fd, {
       onSuccess: (data) => {
         setUploadedOrderId(data.order_id);
@@ -123,8 +119,11 @@ export default function UploadPage() {
   return (
     <main className="mx-auto max-w-lg px-4 py-10">
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">의뢰서 업로드</h1>
-        <a href="/" className="text-sm text-blue-600 hover:underline">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">의뢰서 업로드</h1>
+          <p className="mt-0.5 text-xs text-gray-500">{lab.name}</p>
+        </div>
+        <a href="/" className="text-sm text-brand-600 hover:underline">
           홈으로
         </a>
       </div>
@@ -141,7 +140,7 @@ export default function UploadPage() {
             onDragOver={(e) => e.preventDefault()}
             onClick={() => fileInputRef.current?.click()}
             onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
-            className="cursor-pointer rounded-xl border-2 border-dashed border-gray-300 p-8 text-center transition-colors hover:border-blue-400 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            className="cursor-pointer rounded-xl border-2 border-dashed border-gray-300 p-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-50 focus:outline-none focus:ring-2 focus:ring-brand-300"
           >
             {file ? (
               <div>
@@ -150,7 +149,7 @@ export default function UploadPage() {
                   {(file.size / 1024).toFixed(0)} KB ·{" "}
                   {file.type.split("/")[1]?.toUpperCase()}
                 </p>
-                <p className="mt-2 text-xs text-blue-500">다른 파일을 선택하려면 클릭</p>
+                <p className="mt-2 text-xs text-brand-500">다른 파일을 선택하려면 클릭</p>
               </div>
             ) : (
               <div className="text-gray-500">
@@ -183,20 +182,6 @@ export default function UploadPage() {
 
           {fileError && <p className="text-sm text-red-600">{fileError}</p>}
 
-          {/* 기공소 ID */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">
-              기공소 ID
-            </label>
-            <input
-              type="number"
-              value={labId}
-              onChange={(e) => setLabId(e.target.value)}
-              min={1}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-            />
-          </div>
-
           {submitError && (
             <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
               {submitError}
@@ -207,7 +192,7 @@ export default function UploadPage() {
             type="button"
             disabled={!file || uploading}
             onClick={handleSubmit}
-            className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-brand-600 px-4 py-3 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {uploading ? "업로드 중…" : "업로드"}
           </button>
@@ -219,7 +204,7 @@ export default function UploadPage() {
           <p className="mb-4 text-lg font-bold text-gray-900">#{uploadedOrderId}</p>
 
           {isProcessing && (
-            <div className="flex items-center gap-3 text-blue-600">
+            <div className="flex items-center gap-3 text-brand-600">
               <svg
                 className="h-5 w-5 animate-spin"
                 fill="none"
@@ -302,4 +287,8 @@ export default function UploadPage() {
       )}
     </main>
   );
+}
+
+export default function UploadPage() {
+  return <RequireLab>{(lab) => <UploadForm lab={lab} />}</RequireLab>;
 }

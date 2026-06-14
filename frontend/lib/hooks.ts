@@ -16,11 +16,16 @@ import {
   confirmReviewOrderV1,
   fetchOrderStatus,
   uploadOrder,
+  signupLab,
+  loginLab,
   ReviewQueueResponseV1,
   ReviewDetailResponse,
   ReviewQueueItem,
   OrderStatusResponse,
   OrderIntakeResponse,
+  LabAuthResponse,
+  LabSignupRequest,
+  LabLoginRequest,
 } from "@/lib/api";
 
 // 폴링 중지 상태 — 파이프라인 종착 상태 도달 시 refetch 중단
@@ -96,6 +101,20 @@ export function useOrderStatus(
       if (status && POLL_STOP_STATUSES.has(status)) return false;
       return 2000;
     },
+  });
+}
+
+/** 기공소 회원가입 mutation */
+export function useSignup() {
+  return useMutation<LabAuthResponse, Error, LabSignupRequest>({
+    mutationFn: (body) => signupLab(body),
+  });
+}
+
+/** 기공소 로그인 mutation */
+export function useLogin() {
+  return useMutation<LabAuthResponse, Error, LabLoginRequest>({
+    mutationFn: (body) => loginLab(body),
   });
 }
 

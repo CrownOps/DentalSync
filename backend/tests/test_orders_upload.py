@@ -79,7 +79,7 @@ def harness() -> Iterator[Harness]:
     Base.metadata.create_all(engine)
     session_local = sessionmaker(bind=engine, expire_on_commit=False)
     with session_local() as s:
-        s.add(Lab(name="테스트기공소"))
+        s.add(Lab(name="테스트기공소", code="lab1", password_hash="x"))
         s.commit()
 
     storage = FakeStorage()

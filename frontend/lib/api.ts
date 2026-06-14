@@ -38,6 +38,39 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+// ── 기공소 회원가입 / 로그인 ──────────────────────────────────────────────────
+
+export interface LabAuthResponse {
+  lab_id: number;
+  name: string;
+  code: string;
+}
+
+export interface LabSignupRequest {
+  name: string;
+  code: string;
+  password: string;
+}
+
+export interface LabLoginRequest {
+  code: string;
+  password: string;
+}
+
+export function signupLab(body: LabSignupRequest): Promise<LabAuthResponse> {
+  return apiFetch<LabAuthResponse>("/api/labs/signup", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function loginLab(body: LabLoginRequest): Promise<LabAuthResponse> {
+  return apiFetch<LabAuthResponse>("/api/labs/login", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 // ── 의뢰서 업로드 ─────────────────────────────────────────────────────────────
 
 export interface OrderIntakeResponse {
