@@ -110,4 +110,6 @@ def test_store_routing_result_populates_order_due_date(
         )
 
     with session_factory() as s:
-        assert s.get(Order, order_id).due_date == date(2026, 6, 20)
+        stored = s.get(Order, order_id)
+        assert stored is not None
+        assert stored.due_date == date(2026, 6, 20)

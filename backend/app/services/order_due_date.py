@@ -10,6 +10,7 @@ order_fields 의 납기 필드(corrected_value)를 파싱해 orders.due_date(Dat
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date
 
 from app.services.type_b_rules import normalize_date
@@ -38,7 +39,7 @@ def parse_due_date(value: str | None) -> date | None:
         return None
 
 
-def resolve_due_date(candidates: dict[str, str | None]) -> date | None:
+def resolve_due_date(candidates: Mapping[str, str | None]) -> date | None:
     """필드키→값 매핑에서 우선순위대로 첫 파싱 성공 date 를 반환."""
     for key in DUE_DATE_FIELD_KEYS:
         if key in candidates:
